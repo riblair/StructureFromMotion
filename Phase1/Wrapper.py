@@ -9,6 +9,7 @@ import os
 import csv
 
 from EstimateFundamentalMatrix import estimate_F, visualizeEpipolarLines
+from GetInlierRANSANC import getInlierRANSAC, visualize_RANSAC
 import random
 
 
@@ -75,18 +76,29 @@ def main():
     # util.show_im_match_pair((images[0], images[1]), match_dictionaries[(1,2)], True)
 
     """Estimating F matrix between two images"""
-    match_dict = match_dictionaries[(1,2)]
+    # match_dict = match_dictionaries[(1,2)]
     
-    # randomly select eight pairs from dict
-    key_list = random.sample(match_dict.keys(), 8)
-    eight_pair = []
-    for i in range(8):
-        eight_pair.append((key_list[i], match_dict[key_list[i]]))
-    F = estimate_F(eight_pair)
-    log.info(F)
-    log.info(np.linalg.matrix_rank(F))
+    # # randomly select eight pairs from dict
+    # key_list = random.sample(match_dict.keys(), 8)
+    # eight_pair = []
+    # for i in range(8):
+    #     eight_pair.append((key_list[i], match_dict[key_list[i]]))
+    # F = estimate_F(eight_pair)
+    # log.info(F)
+    # log.info(np.linalg.matrix_rank(F))
 
-    visualizeEpipolarLines(F, eight_pair, images[1], 1)
+    # visualizeEpipolarLines(F, eight_pair, images[1], 1)
+
+    matches_dict = getInlierRANSAC(match_dictionaries[(1,2)])
+    print(f"Percentage of inliers found: {round(100*len(matches_dict)/len(match_dictionaries[(1,2)]))}%")
+
+
+    visualize_RANSAC((images[0], images[1]), match_dictionaries[(1,2)], matches_dict)
+
+    # VISUALIZATION OF INLIERS,
+    # Figure out a good threshold imperical
+
+
     return
 
 if __name__ == '__main__':
