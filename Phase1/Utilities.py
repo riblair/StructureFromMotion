@@ -11,6 +11,13 @@ def load_images(im_path: str, num_images: int, flags: int = cv2.IMREAD_GRAYSCALE
     images = []
     image_names = []
     filenames = os.listdir(im_path)
+    i = 0
+    while( i < len(filenames)):
+        if ".png" not in filenames[i]:
+            filenames.remove(filenames[i]) 
+        else:
+            i+=1
+
     filenames.sort(key=lambda x: int(x.split('.')[0]))  # Sort based on the number before the '.'
     count = 0
     for filename in filenames:
@@ -67,4 +74,24 @@ def parse_matching_txt(file_dir: str):
                         dict_key = (src_IDX, dst_IDX)
                         master_dictionary[dict_key][current_pixel] = Pixel(pixel_RGB, u_dst, v_dst)
     return master_dictionary
+
+
+def show_im_match_pair(image_pair: tuple[np.ndarray, np.ndarray], match_dict: dict, line:bool=False):
+    # the dictionary should be the specific match_pair dictionary
+    im1_shape = image_pair[0].shape
+    print(im1_shape)
+    new_im = np.hstack((image_pair[0], image_pair[1]))
+
+    for key,value in match_dict.items():
+        center1 = key.to_arr(typecast=np.int32)
+        center1 = list(center1)
+        center2 = value.to_arr(typecast=np.int32) + np.array([im1_shape[1], 0], dtype=np.int32)
+        center2 = list(center2)
+        cv2.circle(new_im, center1, 2, (0,0,255), -1)
+        cv2.circle(new_im, center2, 2, (0,0,255), -1)
+        if line: cv2.line(new_im, center1, center2, (0, 255, 255), 1)
+
+    cv2.imshow("image", new_im)
+    cv2.waitKey(0)
+    cv2.destroyAllWindows()
 

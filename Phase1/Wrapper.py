@@ -8,6 +8,9 @@ from datetime import datetime
 import os
 import csv
 
+from EstimateFundamentalMatrix import estimate_F, visualizeEpipolarLines
+import random
+
 
 def main():
     Parser = argparse.ArgumentParser()
@@ -22,7 +25,7 @@ def main():
         "--DataPath",
         default="Phase1/P2Data/",
         type=str,
-        help="Path for the image / matches and calibration data. default: P2Data/"
+        help="Path for the image / matches and calibration data. default: Phase1/P2Data/",
     )
     Parser.add_argument(
         "--OutputPath",
@@ -64,10 +67,26 @@ def main():
     log = logging.getLogger()
     log.info(f"Beginning SfM")
 
-    a = util.parse_matching_txt(DataPath)
+    """Parsing the data"""
+    images, image_names = util.load_images(DataPath, -1, cv2.IMREAD_ANYCOLOR)
+    match_dictionaries = util.parse_matching_txt(DataPath)
 
-    log.info(a)
+    # log.info(a)
+    # util.show_im_match_pair((images[0], images[1]), match_dictionaries[(1,2)], True)
+
+    """Estimating F matrix between two images"""
+    match_dict = match_dictionaries[(1,2)]
     
+    # randomly select eight pairs from dict
+    key_list = random.sample(match_dict.keys(), 8)
+    eight_pair = []
+    for i in range(8):
+        eight_pair.append((key_list[i], match_dict[key_list[i]]))
+    F = estimate_F(eight_pair)
+    log.info(F)
+    log.info(np.linalg.matrix_rank(F))
+
+    visualizeEpipolarLines(F, eight_pair, images[1], 1)
     return
 
 if __name__ == '__main__':
