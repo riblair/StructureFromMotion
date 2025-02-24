@@ -1,16 +1,18 @@
-# Create Your Own Starter Code :)
-import cv2
-import numpy as np
-import logging
 import argparse
-import Utilities as util
-from datetime import datetime
-import os
 import csv
+import cv2
+from datetime import datetime
+import logging
+import numpy as np
+import random
+import os
+import Utilities as util
 
 from EstimateFundamentalMatrix import estimate_F, visualizeEpipolarLines
 from GetInlierRANSANC import getInlierRANSAC, visualize_RANSAC
-import random
+from EssentialMatrixFromFundamentalMatrix import getEssentialFromF, getEssentialFromF2
+from ExtractCameraPose import extract_camera_pose
+from LinearTriangulation import linear_triangulation, visualize_triangulation
 
 
 def main():
@@ -63,7 +65,7 @@ def main():
         DebugLevel = logging.INFO
 
 
-    # This initializes the python loggingger.
+    # This initializes the python logger.
     logging.basicConfig(filename=LoggingFilePath+f"{datetime.now().strftime('%b_%d_%H:%M:%S')}.logging", level=DebugLevel)
     log = logging.getLogger()
     log.info(f"Beginning SfM")
@@ -71,35 +73,32 @@ def main():
     """Parsing the data"""
     images, image_names = util.load_images(DataPath, -1, cv2.IMREAD_ANYCOLOR)
     match_dictionaries = util.parse_matching_txt(DataPath)
-
-    # log.info(a)
+    k_Mat = util.parse_Camera_Instrinsics(DataPath)
     # util.show_im_match_pair((images[0], images[1]), match_dictionaries[(1,2)], True)
 
     """Estimating F matrix between two images"""
-    # match_dict = match_dictionaries[(1,2)]
+    inliers_dict = getInlierRANSAC(match_dictionaries[(1,2)])
     
-    # # randomly select eight pairs from dict
-    # key_list = random.sample(match_dict.keys(), 8)
-    # eight_pair = []
-    # for i in range(8):
-    #     eight_pair.append((key_list[i], match_dict[key_list[i]]))
-    # F = estimate_F(eight_pair)
-    # log.info(F)
-    # log.info(np.linalg.matrix_rank(F))
+    print(f"Percentage of inliers found: {round(100*len(inliers_dict)/len(match_dictionaries[(1,2)]))}%")
+    # visualize_RANSAC((images[0], images[1]), match_dictionaries[(1,2)], matches_dict)
+    key_list = random.sample(inliers_dict.keys(), 8)
+    eight_pair = []
+    for i in range(8):
+        eight_pair.append((key_list[i], inliers_dict[key_list[i]]))
+    F = estimate_F(eight_pair)
 
-    # visualizeEpipolarLines(F, eight_pair, images[1], 1)
+    """Estimate Essential Matrix"""
+    e_Mat = getEssentialFromF2(F,k_Mat)
+    # log.info(getEssentialFromF2(round(e_Mat, 4)))
+    
+    # c_list, r_list = extract_camera_pose(e_Mat, k_Mat)
+    p_list = extract_camera_pose(e_Mat, k_Mat)
+    
 
-    matches_dict = getInlierRANSAC(match_dictionaries[(1,2)])
-    print(f"Percentage of inliers found: {round(100*len(matches_dict)/len(match_dictionaries[(1,2)]))}%")
-
-
-    visualize_RANSAC((images[0], images[1]), match_dictionaries[(1,2)], matches_dict)
-
-    # VISUALIZATION OF INLIERS,
-    # Figure out a good threshold imperical
-
-
-    return
+    """Linear Triangulation"""
+    for i in range(4):
+        x_set = linear_triangulation(p_list[i], p_list[i+1], inliers_dict)
+        visualize_triangulation(images[0], list(inliers_dict), x_set)
 
 if __name__ == '__main__':
     main()

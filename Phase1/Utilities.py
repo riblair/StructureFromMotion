@@ -30,6 +30,19 @@ def load_images(im_path: str, num_images: int, flags: int = cv2.IMREAD_GRAYSCALE
             break
     return images, image_names
 
+def parse_Camera_Instrinsics(file_dir: str) -> np.ndarray:
+    for root, dirs, files in os.walk(file_dir, topdown=True, onerror=None, followlinks=False):
+        for file in files:
+            if "calibration" in file:
+                with open(os.path.join(root,file), newline='') as csvfile:
+                    reader = csv.reader(csvfile, delimiter=' ')
+                    Camera_Calib = np.ndarray((3,3), dtype=np.float32)
+                    row_iter = 0
+                    for row in reader:
+                        Camera_Calib[row_iter,:] = np.array([row[0], row[1], row[2]], dtype=np.float32)
+                        row_iter+=1
+                    return Camera_Calib
+
 def parse_matching_txt(file_dir: str):
 
     # Dict((Tuple),(Dict))
@@ -95,3 +108,10 @@ def show_im_match_pair(image_pair: tuple[np.ndarray, np.ndarray], match_dict: di
     cv2.waitKey(0)
     cv2.destroyAllWindows()
 
+def skew_sym(w: np.ndarray):
+    out = np.array([
+        [0, w[0,0], -w[1,0]],
+        [-w[0,0], 0, w[2,0]],
+        [w[1,0], -w[2,0], 0]
+    ], dtype=np.float32)
+    return out
