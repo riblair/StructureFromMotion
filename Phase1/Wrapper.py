@@ -12,7 +12,7 @@ from EstimateFundamentalMatrix import estimate_F, visualizeEpipolarLines
 from GetInlierRANSANC import getInlierRANSAC, visualize_RANSAC
 from EssentialMatrixFromFundamentalMatrix import getEssentialFromF, getEssentialFromF2
 from ExtractCameraPose import extract_camera_pose
-from LinearTriangulation import linear_triangulation, visualize_triangulation
+from LinearTriangulation import linear_triangulation, visualize_triangulation, visualize_ambiguity
 
 
 def main():
@@ -96,9 +96,15 @@ def main():
     
 
     """Linear Triangulation"""
+    x_set_list = []
     for i in range(4):
-        x_set = linear_triangulation(p_list[i], p_list[i+1], inliers_dict)
-        visualize_triangulation(images[0], list(inliers_dict), x_set)
+        if i == 3:
+            x_set = linear_triangulation(p_list[i], p_list[0], inliers_dict)
+        else:
+            x_set = linear_triangulation(p_list[i], p_list[i+1], inliers_dict)
+        x_set_list.append(x_set)
+        # visualize_triangulation(images[0], list(inliers_dict), x_set)
 
+    visualize_ambiguity(x_set_list)
 if __name__ == '__main__':
     main()
