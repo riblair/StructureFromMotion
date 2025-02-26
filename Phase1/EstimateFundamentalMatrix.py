@@ -55,7 +55,7 @@ def visualizeEpipolarLines(F: np.ndarray, points: list, image, from_image=1):
     if from_image == 2:
         F = np.transpose(F)
     for point in pixel_list:
-        lines.append(np.matmul(F, point.to_hom_arr()))
+        lines.append(np.matmul(F, point.to_arr(homogenous=True)))
     row, col, depth = image.shape
     for line in lines:
         x0,y0 = map(int, [0, -line[2]/line[1] ])

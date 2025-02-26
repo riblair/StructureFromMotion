@@ -38,10 +38,10 @@ def extract_camera_pose(E: np.ndarray, K: np.ndarray):
     if(abs(np.linalg.det(R4)-(-1)) < 0.001):
         R4 = -R4
         c4 = -c4
-    P1 = np.matmul(np.matmul(K, R1), np.hstack((np.eye(3), -c1)))
-    P2 = np.matmul(np.matmul(K, R2), np.hstack((np.eye(3), -c2)))
-    P3 = np.matmul(np.matmul(K, R3), np.hstack((np.eye(3), -c3)))
-    P4 = np.matmul(np.matmul(K, R4), np.hstack((np.eye(3), -c4)))
+    P1 = K @ R1 @ np.hstack((np.eye(3), -c1))
+    P2 = K @ R2 @ np.hstack((np.eye(3), -c2))
+    P3 = K @ R3 @ np.hstack((np.eye(3), -c3))
+    P4 = K @ R4 @ np.hstack((np.eye(3), -c4))
     return [P1,P2,P3,P4]
     # c_list = [c1, c2, c3 ,c4]
     # R_list = [R1, R2, R3, R4]

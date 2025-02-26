@@ -12,7 +12,7 @@ THRESHOLD = 0.25
 def getInlierRANSAC(matches_dict):
     inliers = {}
     for i in range(MAX_ITER):
-        key_list = random.sample(matches_dict.keys(), 8)
+        key_list = random.sample(list(matches_dict), 8)
         current_inliers = dict()
         errors = []
         best_inliers_percent = 0
@@ -21,7 +21,7 @@ def getInlierRANSAC(matches_dict):
             eight_pair.append((key_list[i], matches_dict[key_list[i]]))
         F = estimate_F(eight_pair)
         for pt1, pt2 in matches_dict.items():
-            err = loss((pt1,pt2), F)
+            err = abs(loss((pt1,pt2), F))
             errors.append(float(err))
             if abs(err) < THRESHOLD:
                 current_inliers[pt1] = pt2
@@ -32,7 +32,7 @@ def getInlierRANSAC(matches_dict):
     return inliers
 
 def loss(point_pair: tuple[Pixel, Pixel], F_mat: np.ndarray):
-    return point_pair[1].to_hom_arr().T @ F_mat @ point_pair[0].to_hom_arr()
+    return point_pair[1].to_arr(homogenous=True).T @ F_mat @ point_pair[0].to_arr(homogenous=True)
 
 def visualize_err_graph(errors):
     
@@ -40,6 +40,7 @@ def visualize_err_graph(errors):
     plt.axvline(x=THRESHOLD, color='red', linestyle='--',
                 linewidth=2, label=f'x = {THRESHOLD}')
     # plt.ylim([0, 500])
+    plt.xlim([0, 10])
     plt.show()
 
 def visualize_RANSAC(image_pair, matches_dict_old, matches_dict_new):

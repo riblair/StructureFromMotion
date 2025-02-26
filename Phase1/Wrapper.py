@@ -81,7 +81,7 @@ def main():
     
     print(f"Percentage of inliers found: {round(100*len(inliers_dict)/len(match_dictionaries[(1,2)]))}%")
     # visualize_RANSAC((images[0], images[1]), match_dictionaries[(1,2)], matches_dict)
-    key_list = random.sample(inliers_dict.keys(), 8)
+    key_list = random.sample(list(inliers_dict), 8)
     eight_pair = []
     for i in range(8):
         eight_pair.append((key_list[i], inliers_dict[key_list[i]]))
@@ -97,14 +97,13 @@ def main():
 
     """Linear Triangulation"""
     x_set_list = []
+    P_identity = np.hstack((np.eye(3), np.zeros((3,1))))
     for i in range(4):
-        if i == 3:
-            x_set = linear_triangulation(p_list[i], p_list[0], inliers_dict)
-        else:
-            x_set = linear_triangulation(p_list[i], p_list[i+1], inliers_dict)
+        x_set = linear_triangulation(P_identity, p_list[i], inliers_dict)
         x_set_list.append(x_set)
-        # visualize_triangulation(images[0], list(inliers_dict), x_set)
+        visualize_triangulation(images[0], list(inliers_dict), x_set, p_list[i])
 
     visualize_ambiguity(x_set_list)
+
 if __name__ == '__main__':
     main()

@@ -110,8 +110,8 @@ def show_im_match_pair(image_pair: tuple[np.ndarray, np.ndarray], match_dict: di
 
 def skew_sym(w: np.ndarray):
     out = np.array([
-        [0, w[0,0], -w[1,0]],
-        [-w[0,0], 0, w[2,0]],
-        [w[1,0], -w[2,0], 0]
+        [0, -w[2,0], w[1,0]],
+        [w[2,0], 0, -w[0,0]],
+        [-w[1,0], w[0,0], 0]
     ], dtype=np.float32)
     return out
