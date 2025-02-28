@@ -5,8 +5,7 @@ import cv2
 import matplotlib.pyplot as plt
 import copy
 
-def linear_triangulation(camera_pose_1, camera_pose_2, correspondances: dict):
-    #TODO debug...
+def linear_triangulation_lstsq(camera_pose_1, camera_pose_2, correspondances: dict):
     keys = list(correspondances)
     x_set = [] 
     for key in keys:
@@ -18,15 +17,51 @@ def linear_triangulation(camera_pose_1, camera_pose_2, correspondances: dict):
         rank_1 = np.linalg.matrix_rank(mat)
         rank_2 = np.linalg.matrix_rank(mat_2)
         if rank_1 != 2 or rank_2 != 2:
-            raise ValueError(f"Rank is not 2! Instead is (1) {rank_1} or (2) {rank_2}")
+            raise ValueError(f"Rank is not 2! Instead is: (1) {rank_1} (2) {rank_2}")
+        
+        big_mat = np.vstack((mat, mat_2))
+        zero_mat = np.zeros((6, 1))
+        x, residuals, rank, singular_values = np.linalg.lstsq(big_mat, zero_mat)
+    return x_set
+    
+
+def linear_triangulation(camera_pose_1, camera_pose_2, correspondances: dict, K: np.ndarray):
+    #TODO debug...
+    keys = list(correspondances)
+    x_set = [] 
+    for key in keys:  # THESE ARE PIXEL OBJECTS
+        point2 = correspondances[key].to_arr(homogenous=True)
+        point1 = key.to_arr(homogenous=True)
+        mat = util.skew_sym(point1) @ camera_pose_1
+        mat_2 = util.skew_sym(point2) @ camera_pose_2
+        
+        rank_1 = np.linalg.matrix_rank(mat)
+        rank_2 = np.linalg.matrix_rank(mat_2)
+        if rank_1 != 2 or rank_2 != 2:
+            raise ValueError(f"Rank is not 2! Instead is: (1) {rank_1} (2) {rank_2}")
         
         big_mat = np.vstack((mat, mat_2))
         
         __, S, Vt = np.linalg.svd(big_mat)
-        solution_idx = np.argmin(S)
-        solution = Vt[solution_idx, :]  # Estimated Pose
-        solution_coord = Coordinate(solution)
+        # solution_idx = np.argmin(S)
+        # solution = Vt[solution_idx, :]  # Estimated Pose
+        # solution_coord = Coordinate(solution)
+        # x_set.append(solution_coord)
+        X = Vt[-1]
+        X = X / X[-1]
+        solution_coord = Coordinate(X)
         x_set.append(solution_coord)
+        # Theoretically, the output should be a normalized coordinate. Or at least the X and Y values are
+        # normalized since the input was normalized (pixel coords). This can be rescaled by using the 
+        # focal lengths from K (fx and fy). The Z coordinate remains unchanged since we are calculating
+        # for this via the perspective matrices.
+        # final = np.array([
+        #     [X[0] * K[0,0]],
+        #     [X[1] * K[1,1]],
+        #     [X[2]],
+        #     [1]
+        # ])
+        
     return x_set
 
 def visualize_triangulation(image, original_features, triangulated_features, P):
@@ -65,11 +100,38 @@ def visualize_ambiguity(triangulated_features_list):
     # plt.scatter(xs_list[1], ys_list[1], zs_list[1])
     # plt.scatter(xs_list[2], ys_list[2], zs_list[2])
     # plt.scatter(xs_list[3], ys_list[3], zs_list[3])
-    plt.scatter(xs_list[0], zs_list[0], c='red', linewidths=0.5)
-    plt.scatter(xs_list[1], zs_list[1], c="blue", linewidths=0.5)
-    plt.scatter(xs_list[2], zs_list[2], c="green", linewidths=0.5)
-    plt.scatter(xs_list[3], zs_list[3], c="black", linewidths=0.5)
-    plt.xlabel("X")
-    plt.ylabel("Z")
+
+    # Create a 2x2 grid for subplots
+    fig, axs = plt.subplots(2, 2, figsize=(10, 8))  # Adjust the size as needed
+
+    # First subplot (top-left)
+    axs[0, 0].scatter(xs_list[0], zs_list[0], c='red', linewidths=0.5, s=10)
+    axs[0, 0].set_xlabel("X")
+    axs[0, 0].set_ylabel("Z")
+    axs[0, 0].set_title("Pose 1: R1, t")
+
+    # Second subplot (top-right)
+    axs[0, 1].scatter(xs_list[1], zs_list[1], c='blue', linewidths=0.5, s=10)
+    axs[0, 1].set_xlabel("X")
+    axs[0, 1].set_ylabel("Z")
+    axs[0, 1].set_title("Pose 2: R2, t")
+
+    # Third subplot (bottom-left)
+    axs[1, 0].scatter(xs_list[2], zs_list[2], c='green', linewidths=0.5, s=10)
+    axs[1, 0].set_xlabel("X")
+    axs[1, 0].set_ylabel("Z")
+    axs[1, 0].set_title("Pose 3: R1, t")
+
+    # Fourth subplot (bottom-right)
+    axs[1, 1].scatter(xs_list[3], zs_list[3], c='black', linewidths=0.5, s=10)
+    axs[1, 1].set_xlabel("X")
+    axs[1, 1].set_ylabel("Z")
+    axs[1, 1].set_title("Pose 4: R2, -t")
+
+    # Adjust the layout for better spacing
+    plt.tight_layout()
+
+    # Show the plots
     plt.show()
+
     pass

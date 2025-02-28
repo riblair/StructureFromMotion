@@ -115,3 +115,11 @@ def skew_sym(w: np.ndarray):
         [-w[1,0], w[0,0], 0]
     ], dtype=np.float32)
     return out
+
+def pointlist_from_dict(match_dict:dict, homogenous=False) -> tuple[list[np.ndarray], list[np.ndarray]]:
+    points1 = []
+    points2 = []
+    for key,value in match_dict.items():
+        points1.append(key.to_arr(homogenous=homogenous))
+        points2.append(value.to_arr(homogenous=homogenous))
+    return points1, points2
