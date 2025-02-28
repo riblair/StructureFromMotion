@@ -8,14 +8,15 @@ import numpy as np
 import random
 import os
 import Utilities as util
-import matplotlib
-matplotlib.use('qtagg')
+# import matplotlib
+# matplotlib.use('qtagg')
 
 import EstimateFundamentalMatrix as EFM
 import GetInlierRANSANC as GIR
 import EssentialMatrixFromFundamentalMatrix as EMFFM
 import ExtractCameraPose as ECP
 import LinearTriangulation as LT
+import DisambiguateCameraPose as DCP
 
 def main():
     Parser = argparse.ArgumentParser()
@@ -119,5 +120,7 @@ def main():
         x_set_list.append(x_set)
         LT.visualize_triangulation(images[0], list(inliers_dict), x_set, p_list[i])
     LT.visualize_ambiguity(x_set_list)
+    best_pose, best_x_set = DCP.disambiguate_camera_pose(p_list, x_set_list)
+    LT.visualize_ambiguity(best_x_set)
 if __name__ == '__main__':
     main()

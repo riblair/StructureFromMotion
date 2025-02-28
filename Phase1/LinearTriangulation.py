@@ -2,8 +2,8 @@ import numpy as np
 from Pixel import Pixel, Coordinate
 import Utilities as util
 import cv2
-import matplotlib
-matplotlib.use("tkagg")
+# import matplotlib
+# matplotlib.use("tkagg")
 import matplotlib.pyplot as plt
 import copy
 
@@ -47,10 +47,6 @@ def linear_triangulation(camera_pose_1, camera_pose_2, correspondances: dict):
         big_mat = np.vstack((mat, mat_2))
         
         __, S, Vt = np.linalg.svd(big_mat)
-        # solution_idx = np.argmin(S)
-        # solution = Vt[solution_idx, :]  # Estimated Pose
-        # solution_coord = Coordinate(solution)
-        # x_set.append(solution_coord)
         X = Vt[-1]
         X = X / X[-1]
         solution_coord = Coordinate(X)
@@ -91,7 +87,6 @@ def visualize_triangulation(image, original_features, triangulated_features, P):
         point_homogenous = point.to_arr(homogenous=True)
         reproj_x = (P[0,:] @ point_homogenous) / (P[2, :] @ point_homogenous)
         reproj_y = (P[1,:] @ point_homogenous) / (P[2, :] @ point_homogenous)
-        print(f"Calced_Val: ({reproj_x}, {reproj_y})")
         cv2.circle(im_copy, (int(reproj_x), int(reproj_y)), radius=1, color=(0, 0, 255), thickness=-1)
     cv2.imshow("Linear Triangulation", im_copy)
     cv2.waitKey(0)
