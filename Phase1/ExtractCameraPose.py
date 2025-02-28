@@ -21,11 +21,11 @@ def extract_camera_pose(E: np.ndarray, K: np.ndarray):
     R1 = np.matmul(np.matmul(U, W), Vt)
     R2 = np.matmul(np.matmul(U, W.transpose()), Vt)
 
-    print(np.linalg.det(R1))
+    # print(np.linalg.det(R1))
     if(abs(np.linalg.det(R1)-(-1)) < 0.001):
         R1 = -R1
         t = -t
-    print(np.linalg.det(R2))
+    # print(np.linalg.det(R2))
     if(abs(np.linalg.det(R2)-(-1)) < 0.001):
         R2 = -R2
         t = -t

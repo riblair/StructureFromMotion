@@ -6,10 +6,14 @@ from EstimateFundamentalMatrix import estimate_F, estimate_F2
 import matplotlib.pyplot as plt
 
 
-MAX_ITER = 100
-THRESHOLD = 0.15
+MAX_ITER = 1000
+THRESHOLD = 0.1
+
+def loss(point_pair: tuple[Pixel, Pixel], F_mat: np.ndarray):
+    return point_pair[1].to_arr(homogenous=True).T @ F_mat @ point_pair[0].to_arr(homogenous=True)
 
 def getInlierRANSAC(matches_dict):
+    # TODO: check based on minimizing loss instead of maximizing inliers
     inliers = {}
     best_F = None
     for i in range(MAX_ITER):
@@ -27,15 +31,36 @@ def getInlierRANSAC(matches_dict):
             errors.append(float(err))
             if abs(err) < THRESHOLD:
                 current_inliers[pt1] = pt2
-
         # visualize_err_graph(errors)
         if len(current_inliers.keys()) > len(inliers.keys()):
+            print(sum(errors))
             inliers = current_inliers
             best_F = F
+
+    F = refine_F(inliers)
     return best_F, inliers
 
-def loss(point_pair: tuple[Pixel, Pixel], F_mat: np.ndarray):
-    return point_pair[1].to_arr(homogenous=True).T @ F_mat @ point_pair[0].to_arr(homogenous=True)
+
+def refine_F(inliers):
+    best_F = None
+    err_best = float("inf")
+
+    for i in range(MAX_ITER):
+        key_list = random.sample(list(inliers), 8)
+        errors = 0
+        eight_pair = []
+        for i in range(8):
+            eight_pair.append((key_list[i], inliers[key_list[i]]))
+        F = estimate_F(eight_pair)
+        # F = estimate_F2(matches_dict)
+        for pt1, pt2 in inliers.items():
+            errors+= abs(loss((pt1,pt2), F))
+        if errors < err_best:
+            print(errors)
+            best_F = F
+            err_best = errors
+
+    return best_F
 
 def visualize_err_graph(errors):
     

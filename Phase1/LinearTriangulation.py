@@ -91,7 +91,7 @@ def visualize_triangulation(image, original_features, triangulated_features, P):
         point_homogenous = point.to_arr(homogenous=True)
         reproj_x = (P[0,:] @ point_homogenous) / (P[2, :] @ point_homogenous)
         reproj_y = (P[1,:] @ point_homogenous) / (P[2, :] @ point_homogenous)
-        print(f"Calced_Val: ({reproj_x}, {reproj_y})")
+        # print(f"Calced_Val: ({reproj_x}, {reproj_y})")
         cv2.circle(im_copy, (int(reproj_x), int(reproj_y)), radius=1, color=(0, 0, 255), thickness=-1)
     cv2.imshow("Linear Triangulation", im_copy)
     cv2.waitKey(0)

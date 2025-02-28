@@ -80,29 +80,28 @@ def main():
 
     """Estimating F matrix between two images"""
     F, inliers_dict = GIR.getInlierRANSAC(match_dictionaries[(1,2)])
-    
-    print(f"Percentage of inliers found: {round(100*len(inliers_dict)/len(match_dictionaries[(1,2)]))}%")
-    # GIR.visualize_RANSAC((images[0], images[1]), match_dictionaries[(1,2)], inliers_dict)
-    F2 = EFM.estimate_F2(match_dictionaries[(1,2)])
-    # log.info(f"Fundamental Matricies:\n {F},\n {F2}")
-
     pair_lines = []
     for key,value in inliers_dict.items():
         pair_lines.append((key, value))
-
+    EFM.visualizeEpipolarLines(F, pair_lines, copy.deepcopy(images[0]))
+    # F = EFM.estimate_F2(match_dictionaries[(1,2)])
     # EFM.visualizeEpipolarLines(F, pair_lines, copy.deepcopy(images[0]))
-    # EFM.visualizeEpipolarLines(F2, pair_lines, copy.deepcopy(images[0]))
+    
+    print(f"Percentage of inliers found: {round(100*len(inliers_dict)/len(match_dictionaries[(1,2)]))}%")
+    # GIR.visualize_RANSAC((images[0], images[1]), match_dictionaries[(1,2)], inliers_dict)
+    # log.info(f"Fundamental Matricies:\n {F},\n {F2}")
 
     """Estimate Essential Matrix"""
-    e_Mat = EMFFM.getEssentialFromF(F2,k_Mat)
+    e_Mat = EMFFM.getEssentialFromF(F,k_Mat)
     # print(e_Mat)
-    e_Mat2 = EMFFM.getEssentialFromcv2(match_dictionaries[(1,2)],k_Mat)
+    # e_Mat = EMFFM.getEssentialFromcv2(match_dictionaries[(1,2)], k_Mat)
+    # e_Mat = EMFFM.getEssentialFromcv2(inliers_dict, k_Mat)
     # log.info(f"\n{e_Mat}\n{e_Mat2}\n{e_Mat-e_Mat2}")
     # print(e_Mat2)
     # log.info(f"Essential Matricies:\n {e_Mat},\n {e_Mat2}")
-    R1, R2, t = cv2.decomposeEssentialMat(e_Mat2)
+    R1, R2, t = cv2.decomposeEssentialMat(e_Mat)
     # R1_m, R2_m, c1_m = extract_camera_pose(e_Mat2, k_Mat)
-    p_list = ECP.extract_camera_pose(e_Mat2, k_Mat)
+    p_list = ECP.extract_camera_pose(e_Mat, k_Mat)
 
     """Linear Triangulation"""
     # P_Ident = k_Mat @ np.eye(3) @ np.hstack((np.eye(3), np.zeros((3,1))))
