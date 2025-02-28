@@ -1,4 +1,5 @@
 import argparse
+import copy
 import csv
 import cv2
 from datetime import datetime
@@ -7,13 +8,14 @@ import numpy as np
 import random
 import os
 import Utilities as util
+import matplotlib
+matplotlib.use('qtagg')
 
-from EstimateFundamentalMatrix import estimate_F, visualizeEpipolarLines
-from GetInlierRANSANC import getInlierRANSAC, visualize_RANSAC
-from EssentialMatrixFromFundamentalMatrix import getEssentialFromF, getEssentialFromF2
-from ExtractCameraPose import extract_camera_pose
-from LinearTriangulation import linear_triangulation, visualize_triangulation, visualize_ambiguity
-
+import EstimateFundamentalMatrix as EFM
+import GetInlierRANSANC as GIR
+import EssentialMatrixFromFundamentalMatrix as EMFFM
+import ExtractCameraPose as ECP
+import LinearTriangulation as LT
 
 def main():
     Parser = argparse.ArgumentParser()
@@ -77,34 +79,44 @@ def main():
     # util.show_im_match_pair((images[0], images[1]), match_dictionaries[(1,2)], True)
 
     """Estimating F matrix between two images"""
-    inliers_dict = getInlierRANSAC(match_dictionaries[(1,2)])
+    F, inliers_dict = GIR.getInlierRANSAC(match_dictionaries[(1,2)])
     
     print(f"Percentage of inliers found: {round(100*len(inliers_dict)/len(match_dictionaries[(1,2)]))}%")
-    # visualize_RANSAC((images[0], images[1]), match_dictionaries[(1,2)], matches_dict)
-    key_list = random.sample(inliers_dict.keys(), 8)
-    eight_pair = []
-    for i in range(8):
-        eight_pair.append((key_list[i], inliers_dict[key_list[i]]))
-    F = estimate_F(eight_pair)
+    # GIR.visualize_RANSAC((images[0], images[1]), match_dictionaries[(1,2)], inliers_dict)
+    F2 = EFM.estimate_F2(match_dictionaries[(1,2)])
+    # log.info(f"Fundamental Matricies:\n {F},\n {F2}")
+
+    pair_lines = []
+    for key,value in inliers_dict.items():
+        pair_lines.append((key, value))
+
+    # EFM.visualizeEpipolarLines(F, pair_lines, copy.deepcopy(images[0]))
+    # EFM.visualizeEpipolarLines(F2, pair_lines, copy.deepcopy(images[0]))
 
     """Estimate Essential Matrix"""
-    e_Mat = getEssentialFromF2(F,k_Mat)
-    # log.info(getEssentialFromF2(round(e_Mat, 4)))
-    
-    # c_list, r_list = extract_camera_pose(e_Mat, k_Mat)
-    p_list = extract_camera_pose(e_Mat, k_Mat)
-    
+    e_Mat = EMFFM.getEssentialFromF(F2,k_Mat)
+    # print(e_Mat)
+    e_Mat2 = EMFFM.getEssentialFromcv2(match_dictionaries[(1,2)],k_Mat)
+    # log.info(f"\n{e_Mat}\n{e_Mat2}\n{e_Mat-e_Mat2}")
+    # print(e_Mat2)
+    # log.info(f"Essential Matricies:\n {e_Mat},\n {e_Mat2}")
+    R1, R2, t = cv2.decomposeEssentialMat(e_Mat2)
+    # R1_m, R2_m, c1_m = extract_camera_pose(e_Mat2, k_Mat)
+    p_list = ECP.extract_camera_pose(e_Mat, k_Mat)
 
     """Linear Triangulation"""
+    P_Ident = k_Mat @ np.eye(3) @ np.hstack((np.eye(3), np.zeros((3,1))))
+    log.info(P_Ident)
     x_set_list = []
     for i in range(4):
-        if i == 3:
-            x_set = linear_triangulation(p_list[i], p_list[0], inliers_dict)
-        else:
-            x_set = linear_triangulation(p_list[i], p_list[i+1], inliers_dict)
+        x_set = LT.linear_triangulation(p_list[i], P_Ident, inliers_dict)
+        x_set2 = LT.cv2triangulate(p_list[i], P_Ident, inliers_dict)
+        # pixel_points = cv2.convertPointsFromHomogeneous(x_set2)
+        # log.info(F"\nX_SET {i}\n")
+        # log.info(pixel_points)
+        #     log.info(f"ours: {x_set[i].to_arr(homogenous=True).flatten()}\n cv2: {x_set2[:,i]}")
         x_set_list.append(x_set)
-        # visualize_triangulation(images[0], list(inliers_dict), x_set)
-
-    visualize_ambiguity(x_set_list)
+        LT.visualize_triangulation(images[0], list(inliers_dict), x_set, p_list[i])
+    LT.visualize_ambiguity(x_set_list)
 if __name__ == '__main__':
     main()

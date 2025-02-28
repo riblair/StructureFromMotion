@@ -2,6 +2,8 @@ import numpy as np
 import cv2
 from Pixel import Pixel
 
+import Utilities as util
+
 """
     `eight_point_pair` is a list of length 8 with tuples of pixels.
 """
@@ -42,12 +44,18 @@ def estimate_F(eight_point_pair: list):
     F = np.reshape(Vt[-1, :], (3,3))
     # print(F)
     return F
-    
-def visualizeEpipolarLines(F: np.ndarray, points: list, image, from_image=1):
-    lines = []
 
+def estimate_F2(match_dict: dict):
+    points1, points2 = util.pointlist_from_dict(match_dict)
+
+    points1 = np.array(points1)
+    points2 = np.array(points2)
+    F, __ = cv2.findFundamentalMat(points1, points2, cv2.FM_RANSAC, 0.1, 0.99)
+    return F
+
+def visualizeEpipolarLines(F: np.ndarray, points: list[tuple[Pixel, Pixel]], image, from_image=1):
+    lines = []
     pixel_list = []
-    
     ## Generates a list of pixels in first tmage 
     for point_pair in points:
         pixel_list.append(point_pair[0])
@@ -55,7 +63,7 @@ def visualizeEpipolarLines(F: np.ndarray, points: list, image, from_image=1):
     if from_image == 2:
         F = np.transpose(F)
     for point in pixel_list:
-        lines.append(np.matmul(F, point.to_hom_arr()))
+        lines.append(np.matmul(F, point.to_arr(homogenous=True)))
     row, col, depth = image.shape
     for line in lines:
         x0,y0 = map(int, [0, -line[2]/line[1] ])
