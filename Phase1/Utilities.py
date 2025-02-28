@@ -109,10 +109,12 @@ def show_im_match_pair(image_pair: tuple[np.ndarray, np.ndarray], match_dict: di
     cv2.destroyAllWindows()
 
 def skew_sym(w: np.ndarray):
+    if not(w.shape == (1,3) or w.shape == (3,1)):
+        raise(f"Size Error, Expected (1,3) or (3,1). given: {w.shape}")
     out = np.array([
-        [0, -w[2,0], w[1,0]],
-        [w[2,0], 0, -w[0,0]],
-        [-w[1,0], w[0,0], 0]
+        [         0,   -w[2,0],   w[1,0]],
+        [    w[2,0],        0,  -w[0,0]],
+        [   -w[1,0],  w[0,0],        0]
     ], dtype=np.float32)
     return out
 

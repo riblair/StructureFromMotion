@@ -37,4 +37,4 @@ def extract_camera_pose(E: np.ndarray, K: np.ndarray):
     return [P1,P2,P3,P4]
     # c_list = [c1, c2, c3 ,c4]
     # R_list = [R1, R2, R3, R4]
-    # return c_list, R_list
+    # return R1, R3, c1

@@ -11,10 +11,15 @@ class Pixel():
         else:
             return np.array([self.u, self.v], dtype=dtype)
 class Coordinate():
-    def __init__(self, coord_array):
-        self.x = coord_array[0]
-        self.y = coord_array[1]
-        self.z = coord_array[2]
+    def __init__(self, coord_array, norm=False):
+        if norm:
+            self.x = coord_array[0] / coord_array[3]
+            self.y = coord_array[1] / coord_array[3]
+            self.z = coord_array[2] / coord_array[3]
+        else:
+            self.x = coord_array[0]
+            self.y = coord_array[1]
+            self.z = coord_array[2]
     
     def to_arr(self, homogenous=False, dtype=np.float32) -> np.ndarray:
         if homogenous:
