@@ -8,8 +8,8 @@ import numpy as np
 import random
 import os
 import Utilities as util
-# import matplotlib
-# matplotlib.use('qtagg')
+import matplotlib
+matplotlib.use('qtagg')
 
 import EstimateFundamentalMatrix as EFM
 import GetInlierRANSANC as GIR
@@ -86,19 +86,23 @@ def main():
     for key,value in inliers_dict.items():
         pair_lines.append((key, value))
     EFM.visualizeEpipolarLines(F, pair_lines, copy.deepcopy(images[0]))
+
     # F = EFM.estimate_F2(match_dictionaries[(1,2)])
     # EFM.visualizeEpipolarLines(F, pair_lines, copy.deepcopy(images[0]))
     
     print(f"Percentage of inliers found: {round(100*len(inliers_dict)/len(match_dictionaries[(1,2)]))}%")
-    # GIR.visualize_RANSAC((images[0], images[1]), match_dictionaries[(1,2)], inliers_dict)
+    GIR.visualize_RANSAC((images[0], images[1]), match_dictionaries[(1,2)], inliers_dict)
     # log.info(f"Fundamental Matricies:\n {F},\n {F2}")
 
     """Estimate Essential Matrix"""
     e_Mat = EMFFM.getEssentialFromF(F,k_Mat)
-    # print(e_Mat)
-    # e_Mat = EMFFM.getEssentialFromcv2(match_dictionaries[(1,2)], k_Mat)
-    # e_Mat = EMFFM.getEssentialFromcv2(inliers_dict, k_Mat)
-    # log.info(f"\n{e_Mat}\n{e_Mat2}\n{e_Mat-e_Mat2}")
+    log.info(f" E FROM OUR VALUES\n {e_Mat}")
+    e_Mat2 = EMFFM.getEssentialFromcv2(match_dictionaries[(1,2)], k_Mat)
+    log.info(f" E FROM CV2 ALL features\n {e_Mat2}")
+    e_Mat3 = EMFFM.getEssentialFromcv2(inliers_dict, k_Mat)
+    log.info(f" E FROM CV2 Inliers\n {e_Mat3}")
+    log.info(f"DIFFERENCES\n{e_Mat-e_Mat2}\n{e_Mat-e_Mat3}\n{e_Mat2-e_Mat3}")
+    exit(1)
     # print(e_Mat2)
     # log.info(f"Essential Matricies:\n {e_Mat},\n {e_Mat2}")
     R1, R2, t = cv2.decomposeEssentialMat(e_Mat)

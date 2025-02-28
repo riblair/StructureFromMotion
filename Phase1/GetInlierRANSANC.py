@@ -4,16 +4,17 @@ from Pixel import Pixel
 import random
 from EstimateFundamentalMatrix import estimate_F, estimate_F2
 import matplotlib.pyplot as plt
+import matplotlib
+matplotlib.use('qtagg')
 
 
 MAX_ITER = 1000
-THRESHOLD = 0.1
+THRESHOLD = 0.025
 
 def loss(point_pair: tuple[Pixel, Pixel], F_mat: np.ndarray):
     return point_pair[1].to_arr(homogenous=True).T @ F_mat @ point_pair[0].to_arr(homogenous=True)
 
 def getInlierRANSAC(matches_dict):
-    # TODO: check based on minimizing loss instead of maximizing inliers
     inliers = {}
     best_F = None
     for i in range(MAX_ITER):
@@ -78,18 +79,18 @@ def visualize_RANSAC(image_pair, matches_dict_old, matches_dict_new):
     outliers = matches_dict_old.keys() - matches_dict_new.keys()
     for key in outliers:
         value = matches_dict_old[key]
-        center1 = key.to_arr(typecast=np.int32)
+        center1 = key.to_arr(dtype=np.int32)
         center1 = list(center1.flatten())
-        center2 = value.to_arr(typecast=np.int32) + np.array([[im1_shape[1]], [0]], dtype=np.int32)
+        center2 = value.to_arr(dtype=np.int32) + np.array([[im1_shape[1]], [0]], dtype=np.int32)
         center2 = list(center2.flatten())
         cv2.circle(new_im, center1, 2, (0,0,255), -1)
         cv2.circle(new_im, center2, 2, (0,0,255), -1)
         cv2.line(new_im, center1, center2, (0, 0, 255), 1)
 
     for key,value in matches_dict_new.items():
-        center1 = key.to_arr(typecast=np.int32)
+        center1 = key.to_arr(dtype=np.int32)
         center1 = list(center1.flatten())
-        center2 = value.to_arr(typecast=np.int32) + np.array([[im1_shape[1]], [0]], dtype=np.int32)
+        center2 = value.to_arr(dtype=np.int32) + np.array([[im1_shape[1]], [0]], dtype=np.int32)
         center2 = list(center2.flatten())
         cv2.circle(new_im, center1, 2, (0,0,255), -1)
         cv2.circle(new_im, center2, 2, (0,0,255), -1)

@@ -9,7 +9,7 @@ class Pixel():
         if homogenous:
             return np.array([[self.u],[self.v],[1]], dtype=dtype)
         else:
-            return np.array([self.u, self.v], dtype=dtype)
+            return np.array([[self.u], [self.v]], dtype=dtype)
 class Coordinate():
     def __init__(self, coord_array, norm=False):
         if norm:
