@@ -17,6 +17,7 @@ import EssentialMatrixFromFundamentalMatrix as EMFFM
 import ExtractCameraPose as ECP
 import LinearTriangulation as LT
 import DisambiguateCameraPose as DCP
+import NonlinearTriangulation as NLT
 
 def main():
     Parser = argparse.ArgumentParser()
@@ -120,6 +121,8 @@ def main():
         LT.visualize_triangulation(images[0], list(inliers_dict), x_set, p_list[i])
     LT.visualize_ambiguity(x_set_list)
     best_pose, best_x_set = DCP.disambiguate_camera_pose(p_list, x_set_list)
-    LT.visualize_ambiguity(best_x_set)
+
+    """Non-Linear Optimization of correspandances"""
+    NLT.nonlinear_triangulation(best_pose, P_identity, best_x_set, match_dictionaries[(1,2)])
 if __name__ == '__main__':
     main()
