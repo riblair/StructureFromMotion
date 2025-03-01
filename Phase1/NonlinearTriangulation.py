@@ -4,6 +4,9 @@ import Utilities as util
 import numpy as np
 import cv2
 import copy
+import matplotlib
+# matplotlib.use("tkagg")
+import matplotlib.pyplot as plt
 
 def nonlinear_triangulation(camera_pose_1: np.ndarray, camera_pose_2: np.ndarray, triangulated_points: list[Coordinate], inliers_dict: dict):
     # NOTE: We are assuming that triangulated_points has the same order as inliers_dict. Basically,
@@ -12,35 +15,26 @@ def nonlinear_triangulation(camera_pose_1: np.ndarray, camera_pose_2: np.ndarray
     points1_list, points2_list = util.pointlist_from_dict(inliers_dict)
     pixel_list = list(inliers_dict)
     new_points = []
-    correspondances = {}  # Used in the future for PnP
+    correspondances = dict()  # Used in the future for PnP
     for i in range(len(triangulated_points)):  # Pixel objects
         point1 = points1_list[i]
         point2 = points2_list[i]
         X0 = triangulated_points[i].to_arr(homogenous=True).flatten()  # Initial guess from linear trigulation
-        u1 = point1[0]
-        v1 = point1[1]
-        u2 = point2[0]
-        v2 = point2[1]
-        out = least_squares(error, X0, args=((u1, u2), (v1, v2), camera_pose_1, camera_pose_2), ftol=None)
+        out = least_squares(error, X0, args=((point1, point2), (camera_pose_1, camera_pose_2)), ftol=None)
         coord = Coordinate(out.x)
         correspondances[pixel_list[i]] = coord
         new_points.append(coord)
     return new_points, correspondances
 
 #         Optimized for
-def error(x_homogeneous, u_set, v_set, projection_matrix_1, projection_matrix_2):
-    out = []
-    p_list = [projection_matrix_1, projection_matrix_2]
+def error(x_homogeneous, points, projections):
+    out = 0
     for i in range(2):
-        P1 = p_list[i][0, :].reshape((1,4))  # We reshape these matrices otherwise the result
-        P2 = p_list[i][1, :].reshape((1,4))  # is shape (3,) which is not the same as (1,3)
-        P3 = p_list[i][2, :].reshape((1,4))
-        reproj_x = (P1 @ x_homogeneous) / (P3 @ x_homogeneous)
-        reproj_y = (P2 @ x_homogeneous) / (P3 @ x_homogeneous)
-        u = u_set[i]
-        v = v_set[i]
-        out.append(float(u - reproj_x)**2 + (v - reproj_y)**2)
-    return sum(out)
+        pix = util.reproject_point(projections[i], Coordinate(x_homogeneous))
+        u_err = points[i][0] - pix.u
+        v_err = points[i][1] - pix.v
+        out+= pow(u_err,2) +pow(v_err,2)
+    return out
 
 
 def compare_triangulations(im_pair, K, P_identity, P_best_pose, non_linear_points: list[Coordinate], linear_points: list[Coordinate], inliers_dict: dict):
@@ -52,15 +46,11 @@ def compare_triangulations(im_pair, K, P_identity, P_best_pose, non_linear_point
         cv2.circle(im_1, (int(point.u), int(point.v)), radius=2, color=(0, 255, 0), thickness=-1)
         cv2.circle(im_2, (int(point.u), int(point.v)), radius=2, color=(0, 255, 0), thickness=-1)
     for point in linear_points:  # reprojection of linear
-        point_homogenous = point.to_arr(homogenous=True)
-        reproj_x = (P_identity[0,:] @ point_homogenous) / (P_identity[2, :] @ point_homogenous)
-        reproj_y = (P_identity[1,:] @ point_homogenous) / (P_identity[2, :] @ point_homogenous)
-        cv2.circle(im_1, (int(reproj_x), int(reproj_y)), radius=2, color=(0, 0, 255), thickness=-1)
+        pix = util.reproject_point(P_identity, point)
+        cv2.circle(im_1, (int(pix.u), int(pix.v)), radius=2, color=(0, 0, 255), thickness=-1)
     for point in non_linear_points:  # reprojection of non-linear
-        point_homogenous = point.to_arr(homogenous=True)
-        reproj_x = (P_identity[0,:] @ point_homogenous) / (P_identity[2, :] @ point_homogenous)
-        reproj_y = (P_identity[1,:] @ point_homogenous) / (P_identity[2, :] @ point_homogenous)
-        cv2.circle(im_2, (int(reproj_x), int(reproj_y)), radius=2, color=(0, 0, 255), thickness=-1)
+        pix = util.reproject_point(P_identity, point)
+        cv2.circle(im_1, (int(pix.u), int(pix.v)), radius=2, color=(0, 0, 255), thickness=-1)
     
     new_im = np.hstack((im_1, im_2))
     cv2.imshow("LT (left) NLT (Right)", new_im)
@@ -73,12 +63,8 @@ def calc_error(camera_pose_1: np.ndarray, camera_pose_2: np.ndarray, triangulate
     for i in range(len(triangulated_points)):  # Pixel objects
         point1 = points1_list[i]
         point2 = points2_list[i]
-        X0 = triangulated_points[i].to_arr(homogenous=True).flatten()  # Initial guess from linear trigulation
-        u1 = point1[0]
-        v1 = point1[1]
-        u2 = point2[0]
-        v2 = point2[1]
-        err = error(X0, (u1, u2), (v1, v2), camera_pose_1, camera_pose_2)
+        X0 = triangulated_points[i].to_arr(homogenous=True).flatten()
+        err = error(X0, (point1, point2), (camera_pose_1, camera_pose_2))
         err_total += err
     return err_total
     

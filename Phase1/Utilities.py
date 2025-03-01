@@ -3,7 +3,7 @@ import cv2
 import os
 import csv
 import logging
-from Pixel import Pixel
+from Pixel import Pixel, Coordinate
 logger = logging.getLogger(__name__)
 
 
@@ -79,13 +79,13 @@ def parse_matching_txt(file_dir: str):
                     u_src = float(row[4])
                     v_src = float(row[5])
                     
-                    current_pixel = Pixel(pixel_RGB, u_src, v_src)
+                    current_pixel = Pixel(u_src, v_src, RGB=pixel_RGB)
                     for i in range(num_matches-1):
                         dst_IDX = int(row[6+i*3])
                         u_dst = float(row[(7+i*3)])
                         v_dst = float(row[(8+i*3)])
                         dict_key = (src_IDX, dst_IDX)
-                        master_dictionary[dict_key][current_pixel] = Pixel(pixel_RGB, u_dst, v_dst)
+                        master_dictionary[dict_key][current_pixel] = Pixel(u_dst, v_dst, RGB=pixel_RGB)
     return master_dictionary
 
 
@@ -117,6 +117,12 @@ def skew_sym(w: np.ndarray):
         [   -w[1,0],  w[0,0],        0]
     ], dtype=np.float32)
     return out
+
+def reproject_point(p_mat: np.ndarray, X_coord: Coordinate) -> Pixel:
+    point_homogenous = X_coord.to_arr(homogenous=True)
+    reproj_u = (p_mat[0,:] @ point_homogenous) / (p_mat[2, :] @ point_homogenous)
+    reproj_v = (p_mat[1,:] @ point_homogenous) / (p_mat[2, :] @ point_homogenous)
+    return Pixel(reproj_u, reproj_v)
 
 def pointlist_from_dict(match_dict:dict, homogenous=False) -> tuple[list[np.ndarray], list[np.ndarray]]:
     points1 = []

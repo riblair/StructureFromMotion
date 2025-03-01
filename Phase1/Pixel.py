@@ -1,6 +1,6 @@
 import numpy as np
 class Pixel():
-    def __init__(self, RGB: tuple[(int, int, int)], u: float, v:float):
+    def __init__(self, u: float, v:float, RGB: tuple[(int, int, int)]=None):
         self.u = u 
         self.v = v
         self.rgb = RGB

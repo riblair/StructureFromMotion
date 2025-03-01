@@ -42,7 +42,6 @@ def getInlierRANSAC(matches_dict):
     F = refine_F(inliers)
     return best_F, inliers
 
-
 def refine_F(inliers):
     best_F = None
     err_best = float("inf")
