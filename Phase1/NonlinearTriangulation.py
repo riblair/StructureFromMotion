@@ -82,3 +82,26 @@ def calc_error(camera_pose_1: np.ndarray, camera_pose_2: np.ndarray, triangulate
         err_total += err
     return err_total
     
+def compare_triangulations_top_down(points_3d, best_x_set, best_t):
+    xl_list = []
+    xn_list = []
+
+    zl_list = []
+    zn_list = []
+    for pointL, pointN in zip(best_x_set, points_3d):
+        xl_list.append(pointL.x)
+        xn_list.append(pointN.x)
+
+        zl_list.append(pointL.z)
+        zn_list.append(pointN.z)
+
+    # First subplot (top-left)
+    plt.scatter(xl_list, zl_list, c='red', linewidths=0.5, s=10)
+    plt.scatter(xn_list, zn_list, c='blue', linewidths=0.5, s=10)
+    plt.legend(["Linear", "Non-Linear"])
+    plt.scatter(0, 0, c='red', marker="^")
+    plt.scatter(best_t[0, 3], best_t[2, 3], c='Blue', marker="^")
+    plt.xlabel("X")
+    plt.xlabel("Z")
+    plt.title("Linear vs Non-Linear Triangulation")
+    plt.show()

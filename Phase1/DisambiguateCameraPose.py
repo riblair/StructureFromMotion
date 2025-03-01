@@ -1,17 +1,19 @@
 from Pixel import Coordinate
 
-def disambiguate_camera_pose(camera_poses, triangulated_point_list: list[list[Coordinate]]):
+def disambiguate_camera_pose(t_list, triangulated_point_list: list[list[Coordinate]]):
     # TODO: is wrong. specifically, it cannot determine which to use in the event of a tie.....
-    best_pose = None
+    best_translation = None
     best_points = None
     highest_positive_count = 0
     iter = 1
-    for camera_pose, triangulated_points in zip(camera_poses, triangulated_point_list):
+
+
+    for transformation, triangulated_points in zip(t_list, triangulated_point_list):
         # Currently, this assumes that the cheirality condition uses the R from the
         # perspective matrix AFTER we multiply it by K. If we run into errors, the 
         # first thing I would check is to input the raw R and t pairings.
-        R3 = camera_pose[2, 0:3].reshape((1,3))  # 3rd row of R representing z-axis
-        t = camera_pose[:, 3].reshape((3,1))  # 3x1 translation vector
+        R3 = transformation[2, 0:3].reshape((1,3))  # 3rd row of R representing z-axis
+        t = transformation[:, 3].reshape((3,1))  # 3x1 translation vector
         num_positive_depth_points = 0
         for point in triangulated_points:  # Point is Coordinate class
             point = point.to_arr()  # Do not make homogenous for 3x1 - 3x1
@@ -19,9 +21,9 @@ def disambiguate_camera_pose(camera_poses, triangulated_point_list: list[list[Co
             if point_3d[0] > 0:
                 num_positive_depth_points += 1
         if num_positive_depth_points > highest_positive_count:
-            best_pose = camera_pose
+            best_translation = transformation
             best_points = triangulated_points
             highest_positive_count = num_positive_depth_points
         print(f"[{iter} num_pos_depth = {num_positive_depth_points}]")
         iter+=1
-    return best_pose, best_points
+    return best_translation, best_points

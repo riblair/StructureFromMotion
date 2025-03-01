@@ -99,11 +99,17 @@ def main():
     """Extract Pose from Essential Matrix"""
     R1, R2, t = ECP.extract_camera_pose(e_Mat)
 
-    P1 = k_Mat @ R1 @ np.hstack((np.eye(3), t))
-    P2 = k_Mat @ R2 @ np.hstack((np.eye(3), t))
-    P3 = k_Mat @ R1 @ np.hstack((np.eye(3), -t))
-    P4 = k_Mat @ R2 @ np.hstack((np.eye(3), -t))
+    T1 = R1 @ np.hstack((np.eye(3), t))
+    T2 = R2 @ np.hstack((np.eye(3), t))
+    T3 = R1 @ np.hstack((np.eye(3), -t))
+    T4 = R2 @ np.hstack((np.eye(3), -t))
 
+    P1 = k_Mat @ T1
+    P2 = k_Mat @ T2
+    P3 = k_Mat @ T3
+    P4 = k_Mat @ T4
+
+    t_list = [T1, T2, T3, T4]
     p_list = [P1, P2, P3, P4]
 
     """Linear Triangulation"""
@@ -124,7 +130,8 @@ def main():
         # LT.visualize_triangulation(images[1], list(inliers_dict.values()), x_set, p_list[i])
     LT.visualize_ambiguity(x_set_list)
     # LT.visualize_ambiguity(x_set2_list)
-    best_pose, best_x_set = DCP.disambiguate_camera_pose(p_list, x_set_list)
+    best_t, best_x_set = DCP.disambiguate_camera_pose(t_list, x_set_list)
+    best_pose = k_Mat @ best_t
     LT.visualize_triangulation(images[1], list(inliers_dict.values()), best_x_set, best_pose)
     """Non-Linear Optimization of correspondances"""
     # TODO non-linear triangulation does improve the points, but not by any significant margin. 
@@ -136,6 +143,8 @@ def main():
     points_3d, correspondances = NLT.nonlinear_triangulation(P_identity, best_pose, best_x_set, inliers_dict)
     print(f"LINEAR ERROR: {NLT.calc_error(P_identity, best_pose, best_x_set, inliers_dict)}")
     print(f"NON-LINEAR ERROR: {NLT.calc_error(P_identity, best_pose, points_3d, inliers_dict)}")
+    NLT.compare_triangulations_top_down(points_3d, best_x_set, best_t)
+    # exit(1)
     # NLT.compare_triangulations((images[0], images[0]), k_Mat, P_identity, best_pose, points_3d, best_x_set, inliers_dict)
     P = PnP.linear_pnp_RANSAC(correspondances, k_Mat)
     Rt = np.linalg.inv(k_Mat) @ P
