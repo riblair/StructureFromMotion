@@ -2,12 +2,15 @@ import numpy as np
 import cv2
 from Pixel import Pixel
 import random
-from EstimateFundamentalMatrix import estimate_F, estimate_F2
+from EstimateFundamentalMatrix import estimate_F
+import matplotlib
+matplotlib.use('qtagg')
 import matplotlib.pyplot as plt
 
 
-MAX_ITER = 1000
-THRESHOLD = 0.025
+
+MAX_ITER = 250
+THRESHOLD = 0.02
 
 def loss(point_pair: tuple[Pixel, Pixel], F_mat: np.ndarray):
     return point_pair[1].to_arr(homogenous=True).T @ F_mat @ point_pair[0].to_arr(homogenous=True)
@@ -36,7 +39,7 @@ def getInlierRANSAC(matches_dict):
             print(sum(errors))
             inliers = current_inliers
             best_F = F
-
+    print("refinement step")
     F = refine_F(inliers)
     return best_F, inliers
 

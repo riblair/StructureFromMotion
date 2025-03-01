@@ -27,3 +27,8 @@ class Coordinate():
         else:
             return np.array([[self.x], [self.y], [self.z]], dtype=dtype)
         
+    def __sub__(self, a):
+        return Coordinate(np.array([self.x-a.x, self.y-a.y, self.z-a.z, 1]))
+        
+    def __str__(self):
+        return f"({self.x}, {self.y}, {self.z})"

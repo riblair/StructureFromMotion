@@ -2,8 +2,8 @@ import numpy as np
 from Pixel import Pixel, Coordinate
 import Utilities as util
 import cv2
-# import matplotlib
-# matplotlib.use("tkagg")
+import matplotlib
+matplotlib.use("tkagg")
 import matplotlib.pyplot as plt
 import copy
 
@@ -30,26 +30,34 @@ def linear_triangulation_lstsq(camera_pose_1, camera_pose_2, correspondances: di
     
 
 def linear_triangulation(camera_pose_1, camera_pose_2, correspondances: dict):
-    #TODO debug...
+    """ WE DO NEED TO Normalize"""
+    
     keys = list(correspondances)
     x_set = [] 
     for key in keys:  # THESE ARE PIXEL OBJECTS
-        point2 = correspondances[key].to_arr(homogenous=True)
         point1 = key.to_arr(homogenous=True)
-        mat = util.skew_sym(point1) @ camera_pose_1
-        mat_2 = util.skew_sym(point2) @ camera_pose_2
+        # point2 = correspondances[key].to_arr(homogenous=True)
+
+        A = np.array([
+            key.u * camera_pose_1[2,:] - camera_pose_1[0,:],
+            key.v * camera_pose_1[2,:] - camera_pose_1[1,:],
+            correspondances[key].u * camera_pose_2[2,:] - camera_pose_2[0,:],
+            correspondances[key].v * camera_pose_2[2,:] - camera_pose_2[1,:],
+        ])
+        # mat = util.skew_sym(point1) @ camera_pose_1
+        # mat_2 = util.skew_sym(point2) @ camera_pose_2
         
-        rank_1 = np.linalg.matrix_rank(mat)
-        rank_2 = np.linalg.matrix_rank(mat_2)
-        if rank_1 != 2 or rank_2 != 2:
-            raise ValueError(f"Rank is not 2! Instead is: (1) {rank_1} (2) {rank_2}")
+        # rank_1 = np.linalg.matrix_rank(mat)
+        # rank_2 = np.linalg.matrix_rank(mat_2)
+        # if rank_1 != 2 or rank_2 != 2:
+        #     raise ValueError(f"Rank is not 2! Instead is: (1) {rank_1} (2) {rank_2}")
         
-        big_mat = np.vstack((mat, mat_2))
+        # big_mat = np.vstack((mat, mat_2))
         
-        __, S, Vt = np.linalg.svd(big_mat)
+        __, S, Vt = np.linalg.svd(A)
         X = Vt[-1]
-        X = X / X[-1]
-        solution_coord = Coordinate(X)
+        # X = X / X[-1]
+        solution_coord = Coordinate(X, norm=True)
         x_set.append(solution_coord)
         # Theoretically, the output should be a normalized coordinate. Or at least the X and Y values are
         # normalized since the input was normalized (pixel coords). This can be rescaled by using the 

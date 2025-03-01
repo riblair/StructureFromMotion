@@ -18,6 +18,7 @@ import ExtractCameraPose as ECP
 import LinearTriangulation as LT
 import DisambiguateCameraPose as DCP
 import NonlinearTriangulation as NLT
+from Pixel import Pixel, Coordinate
 
 def main():
     Parser = argparse.ArgumentParser()
@@ -104,15 +105,19 @@ def main():
     # exit(1)
     # print(e_Mat2)
     # log.info(f"Essential Matricies:\n {e_Mat},\n {e_Mat2}")
-    R1, R2, t = cv2.decomposeEssentialMat(e_Mat)
+    # R1, R2, t = cv2.decomposeEssentialMat(e_Mat)
 
-    # p1 = k_Mat @ R1 @ np.hstack((np.eye(3), -t))
-    # p2 = k_Mat @ R1 @ np.hstack((np.eye(3), -t))
-    # p3 = k_Mat @ R2 @ np.hstack((np.eye(3), -t))
+    # p1 = k_Mat @ R1 @ np.hstack((np.eye(3), t))
+    # p2 = k_Mat @ R2 @ np.hstack((np.eye(3), t))
+    # p3 = k_Mat @ R1 @ np.hstack((np.eye(3), -t))
     # p4 = k_Mat @ R2 @ np.hstack((np.eye(3), -t))
-
-
     p_list = ECP.extract_camera_pose(e_Mat, k_Mat)
+
+    # log.info(f"Diff1\n{p1-p_list[0]}")
+    # log.info(f"Diff1\n{p2-p_list[1]}")
+    # log.info(f"Diff1\n{p3-p_list[2]}")
+    # log.info(f"Diff1\n{p4-p_list[3]}")
+    # exit(1)
 
     """Linear Triangulation"""
     # P_Ident = k_Mat @ np.eye(3) @ np.hstack((np.eye(3), np.zeros((3,1))))
@@ -121,21 +126,29 @@ def main():
     P_identity = k_Mat @ np.hstack((np.eye(3), np.zeros((3,1))))
     for i in range(4):
         x_set = LT.linear_triangulation(P_identity, p_list[i], inliers_dict)
-        # x_set2 = LT.cv2triangulate(p_list[i], P_identity, inliers_dict)
-        # pixel_points = cv2.convertPointsFromHomogeneous(x_set2)
-        # log.info(F"\nX_SET {i}\n")
-        # log.info(pixel_points)
-        #     log.info(f"ours: {x_set[i].to_arr(homogenous=True).flatten()}\n cv2: {x_set2[:,i]}")
+        # x_set2 = LT.cv2triangulate(P_identity, p_list[i], inliers_dict)
+        # x_set_pix = []
+        # for i in range(x_set2.shape[1]):
+        #     a = Coordinate(x_set2[:, i], norm=True)
+        #     x_set_pix.append(a)
+            # print(x_set[i] - a)
+        # x_set_list.append(x_set_pix)
         x_set_list.append(x_set)
+        LT.visualize_triangulation(images[0], list(inliers_dict.keys()), x_set, P_identity)
         #                            I1       points in I1        triag  P back to I1
-    # LT.visualize_ambiguity(x_set_list)
+    LT.visualize_ambiguity(x_set_list)
     best_pose, best_x_set = DCP.disambiguate_camera_pose(p_list, x_set_list)
-    """Non-Linear Optimization of correspandances"""
-    points_3d = NLT.nonlinear_triangulation(best_pose, best_pose, best_x_set, inliers_dict)
+    LT.visualize_triangulation(images[0], list(inliers_dict.keys()), best_x_set, P_identity)
+    exit(1)
 
-    # LT.visualize_triangulation(images[0], list(inliers_dict.values()), best_x_set, best_pose)
-    # LT.visualize_triangulation(images[0], list(inliers_dict.values()), points_3d, best_pose)
-    NLT.compare_triangulations((copy.deepcopy(images[0]),copy.deepcopy(images[0])), k_Mat, P_identity, best_pose, points_3d, best_x_set, inliers_dict)
+
+    """Non-Linear Optimization of correspandances"""
+    points_3d = NLT.nonlinear_triangulation(P_identity, best_pose, best_x_set, inliers_dict)
+    # LT.visualize_triangulation(images[0], list(  inliers_dict.keys()), best_x_set, best_pose)
+    # LT.visualize_triangulation(images[1], list(inliers_dict.values()), best_x_set,  P_identity)
+    # LT.visualize_triangulation(images[0], list(  inliers_dict.keys()), points_3d, best_pose)
+    # LT.visualize_triangulation(images[1], list(inliers_dict.values()), points_3d,  P_identity)
+    NLT.compare_triangulations((images[0], images[0]), k_Mat, P_identity, best_pose, points_3d, best_x_set, inliers_dict)
 
 if __name__ == '__main__':
     main()
