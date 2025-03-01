@@ -23,7 +23,7 @@ class Coordinate():
     
     def to_arr(self, homogenous=False, dtype=np.float32) -> np.ndarray:
         if homogenous:
-            return np.array([[self.x], [self.y], [self.z], [np.float32(1)]], dtype=dtype)
+            return np.array([[self.x], [self.y], [self.z], [np.float32(1)]], dtype=dtype).reshape((4,1))
         else:
             return np.array([[self.x], [self.y], [self.z]], dtype=dtype)
         
