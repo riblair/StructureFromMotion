@@ -95,7 +95,17 @@ def main():
 
     """Estimate Essential Matrix"""
     e_Mat = EMFFM.getEssentialFromF(F,k_Mat)
-    p_list = ECP.extract_camera_pose(e_Mat, k_Mat)
+
+    """Extract Pose from Essential Matrix"""
+    R1, R2, t = ECP.extract_camera_pose(e_Mat)
+
+    P1 = k_Mat @ R1 @ np.hstack((np.eye(3), t))
+    P2 = k_Mat @ R2 @ np.hstack((np.eye(3), t))
+    P3 = k_Mat @ R1 @ np.hstack((np.eye(3), -t))
+    P4 = k_Mat @ R2 @ np.hstack((np.eye(3), -t))
+
+    p_list = [P1, P2, P3, P4]
+
     """Linear Triangulation"""
     x_set_list = []
     # x_set2_list = []
