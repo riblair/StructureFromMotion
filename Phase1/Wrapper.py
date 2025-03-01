@@ -8,8 +8,8 @@ import numpy as np
 import random
 import os
 import Utilities as util
-import matplotlib
-matplotlib.use('qtagg')
+# import matplotlib
+# matplotlib.use('qtagg')
 
 import EstimateFundamentalMatrix as EFM
 import GetInlierRANSANC as GIR
@@ -19,6 +19,8 @@ import LinearTriangulation as LT
 import DisambiguateCameraPose as DCP
 import NonlinearTriangulation as NLT
 from Pixel import Pixel, Coordinate
+# import LinearPnP as LPnP
+import PnPRANSAC as PnP
 
 def main():
     Parser = argparse.ArgumentParser()
@@ -119,10 +121,17 @@ def main():
     # example improvement 3656.84-> 3647.73, or 2800.15 -> 2791.05
     # Perhaps we need to be doing the projection of point 
 
-    points_3d = NLT.nonlinear_triangulation(P_identity, best_pose, best_x_set, inliers_dict)
+    # The output 'correspondances' refers to the correspondance between a 2D point in the image and
+    # the 3D point in space. NOTE: Current just for image 1
+    points_3d, correspondances = NLT.nonlinear_triangulation(P_identity, best_pose, best_x_set, inliers_dict)
     print(f"LINEAR ERROR: {NLT.calc_error(P_identity, best_pose, best_x_set, inliers_dict)}")
     print(f"NON-LINEAR ERROR: {NLT.calc_error(P_identity, best_pose, points_3d, inliers_dict)}")
-    NLT.compare_triangulations((images[0], images[0]), k_Mat, P_identity, best_pose, points_3d, best_x_set, inliers_dict)
+    # NLT.compare_triangulations((images[0], images[0]), k_Mat, P_identity, best_pose, points_3d, best_x_set, inliers_dict)
+    P = PnP.linear_pnp_RANSAC(correspondances, k_Mat)
+    Rt = np.linalg.inv(k_Mat) @ P
+    print(f"P: \n{P}")
+    print(f"R: \n{Rt[:, 0:3]}")
+    print(f"t: \n{Rt[:, 3]}")
 
 if __name__ == '__main__':
     main()

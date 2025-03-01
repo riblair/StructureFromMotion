@@ -2,8 +2,8 @@ import numpy as np
 from Pixel import Pixel, Coordinate
 import Utilities as util
 import cv2
-import matplotlib
-matplotlib.use("tkagg")
+# import matplotlib
+# matplotlib.use("tkagg")
 import matplotlib.pyplot as plt
 import copy
 
@@ -67,12 +67,12 @@ def visualize_triangulation(image, original_features, triangulated_features, P):
     im_copy = copy.deepcopy(image)
     
     for point in original_features: # ground truth
-        cv2.circle(im_copy, (int(point.u), int(point.v)), radius=1, color=(0, 255, 0), thickness=-1)
+        cv2.circle(im_copy, (int(point.u), int(point.v)), radius=2, color=(0, 255, 0), thickness=-1)
     for point in triangulated_features:  # reprojection
         point_homogenous = point.to_arr(homogenous=True)
         reproj_x = (P[0,:] @ point_homogenous) / (P[2, :] @ point_homogenous)
         reproj_y = (P[1,:] @ point_homogenous) / (P[2, :] @ point_homogenous)
-        cv2.circle(im_copy, (int(reproj_x), int(reproj_y)), radius=1, color=(0, 0, 255), thickness=-1)
+        cv2.circle(im_copy, (int(reproj_x), int(reproj_y)), radius=2, color=(0, 0, 255), thickness=-1)
     cv2.imshow("Linear Triangulation", im_copy)
     cv2.waitKey(0)
     cv2.destroyAllWindows()
@@ -101,6 +101,7 @@ def visualize_ambiguity(triangulated_features_list):
     axs[0, 0].scatter(xs_list[0], zs_list[0], c='red', linewidths=0.5, s=10)
     axs[0, 0].set_xlabel("X")
     axs[0, 0].set_ylabel("Z")
+    axs[0, 0].set_xlim((-10, 10))
     axs[0, 0].set_title("Pose 1: R1, t")
 
     # Second subplot (top-right)

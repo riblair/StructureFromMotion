@@ -10,7 +10,9 @@ def nonlinear_triangulation(camera_pose_1: np.ndarray, camera_pose_2: np.ndarray
     # the first element of list(inliers_dict) corresponds to the first element of triangulated_points
     # Returns a list of non-homogenous point arrays [u, v]^T
     points1_list, points2_list = util.pointlist_from_dict(inliers_dict)
+    pixel_list = list(inliers_dict)
     new_points = []
+    correspondances = {}  # Used in the future for PnP
     for i in range(len(triangulated_points)):  # Pixel objects
         point1 = points1_list[i]
         point2 = points2_list[i]
@@ -20,8 +22,10 @@ def nonlinear_triangulation(camera_pose_1: np.ndarray, camera_pose_2: np.ndarray
         u2 = point2[0]
         v2 = point2[1]
         out = least_squares(error, X0, args=((u1, u2), (v1, v2), camera_pose_1, camera_pose_2), ftol=None)
-        new_points.append(Coordinate(out.x))
-    return new_points
+        coord = Coordinate(out.x)
+        correspondances[pixel_list[i]] = coord
+        new_points.append(coord)
+    return new_points, correspondances
 
 #         Optimized for
 def error(x_homogeneous, u_set, v_set, projection_matrix_1, projection_matrix_2):
@@ -45,18 +49,18 @@ def compare_triangulations(im_pair, K, P_identity, P_best_pose, non_linear_point
     im_2 = copy.deepcopy(im_pair[1])
     p1_list = list(inliers_dict)
     for point in p1_list: # ground truth
-        cv2.circle(im_1, (int(point.u), int(point.v)), radius=1, color=(0, 255, 0), thickness=-1)
-        cv2.circle(im_2, (int(point.u), int(point.v)), radius=1, color=(0, 255, 0), thickness=-1)
+        cv2.circle(im_1, (int(point.u), int(point.v)), radius=2, color=(0, 255, 0), thickness=-1)
+        cv2.circle(im_2, (int(point.u), int(point.v)), radius=2, color=(0, 255, 0), thickness=-1)
     for point in linear_points:  # reprojection of linear
         point_homogenous = point.to_arr(homogenous=True)
         reproj_x = (P_identity[0,:] @ point_homogenous) / (P_identity[2, :] @ point_homogenous)
         reproj_y = (P_identity[1,:] @ point_homogenous) / (P_identity[2, :] @ point_homogenous)
-        cv2.circle(im_1, (int(reproj_x), int(reproj_y)), radius=1, color=(0, 0, 255), thickness=-1)
+        cv2.circle(im_1, (int(reproj_x), int(reproj_y)), radius=2, color=(0, 0, 255), thickness=-1)
     for point in non_linear_points:  # reprojection of non-linear
         point_homogenous = point.to_arr(homogenous=True)
         reproj_x = (P_identity[0,:] @ point_homogenous) / (P_identity[2, :] @ point_homogenous)
         reproj_y = (P_identity[1,:] @ point_homogenous) / (P_identity[2, :] @ point_homogenous)
-        cv2.circle(im_2, (int(reproj_x), int(reproj_y)), radius=1, color=(0, 0, 255), thickness=-1)
+        cv2.circle(im_2, (int(reproj_x), int(reproj_y)), radius=2, color=(0, 0, 255), thickness=-1)
     
     new_im = np.hstack((im_1, im_2))
     cv2.imshow("LT (left) NLT (Right)", new_im)
