@@ -31,45 +31,18 @@ def linear_triangulation_lstsq(camera_pose_1, camera_pose_2, correspondances: di
 
 def linear_triangulation(camera_pose_1, camera_pose_2, correspondances: dict):
     """ WE DO NEED TO Normalize"""
-    
-    keys = list(correspondances)
     x_set = [] 
-    for key in keys:  # THESE ARE PIXEL OBJECTS
-        point1 = key.to_arr(homogenous=True)
-        # point2 = correspondances[key].to_arr(homogenous=True)
-
+    for key, value in correspondances.items():  # THESE ARE PIXEL OBJECTS
         A = np.array([
             key.u * camera_pose_1[2,:] - camera_pose_1[0,:],
             key.v * camera_pose_1[2,:] - camera_pose_1[1,:],
             correspondances[key].u * camera_pose_2[2,:] - camera_pose_2[0,:],
             correspondances[key].v * camera_pose_2[2,:] - camera_pose_2[1,:],
         ])
-        # mat = util.skew_sym(point1) @ camera_pose_1
-        # mat_2 = util.skew_sym(point2) @ camera_pose_2
-        
-        # rank_1 = np.linalg.matrix_rank(mat)
-        # rank_2 = np.linalg.matrix_rank(mat_2)
-        # if rank_1 != 2 or rank_2 != 2:
-        #     raise ValueError(f"Rank is not 2! Instead is: (1) {rank_1} (2) {rank_2}")
-        
-        # big_mat = np.vstack((mat, mat_2))
-        
         __, S, Vt = np.linalg.svd(A)
         X = Vt[-1]
-        # X = X / X[-1]
         solution_coord = Coordinate(X, norm=True)
         x_set.append(solution_coord)
-        # Theoretically, the output should be a normalized coordinate. Or at least the X and Y values are
-        # normalized since the input was normalized (pixel coords). This can be rescaled by using the 
-        # focal lengths from K (fx and fy). The Z coordinate remains unchanged since we are calculating
-        # for this via the perspective matrices.
-        # final = np.array([
-        #     [X[0] * K[0,0]],
-        #     [X[1] * K[1,1]],
-        #     [X[2]],
-        #     [1]
-        # ])
-        
     return x_set
 
 def cv2triangulate(p1, p2, inliers_dict):
@@ -83,7 +56,11 @@ def cv2triangulate(p1, p2, inliers_dict):
         iterator+=1
 
     coords = cv2.triangulatePoints(p1,p2, x_mat1, x_mat2)
-    return coords
+    coords_list = []
+    for i in range(coords.shape[1]):
+        a = Coordinate(coords[:, i], norm=True)
+        coords_list.append(a)
+    return coords_list
 
 def visualize_triangulation(image, original_features, triangulated_features, P):
 
@@ -116,10 +93,6 @@ def visualize_ambiguity(triangulated_features_list):
         xs_list.append(xi_list)
         ys_list.append(yi_list)
         zs_list.append(zi_list)
-    # plt.scatter(xs_list[0], ys_list[0], zs_list[0])
-    # plt.scatter(xs_list[1], ys_list[1], zs_list[1])
-    # plt.scatter(xs_list[2], ys_list[2], zs_list[2])
-    # plt.scatter(xs_list[3], ys_list[3], zs_list[3])
 
     # Create a 2x2 grid for subplots
     fig, axs = plt.subplots(2, 2, figsize=(10, 8))  # Adjust the size as needed

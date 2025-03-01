@@ -45,8 +45,6 @@ def estimate_F(eight_point_pair: list):
     U, S, Vt = np.linalg.svd(F_prime)
     F = np.reshape(Vt[-1, :], (3,3))
     f_rank = np.linalg.matrix_rank(F)
-    # if f_rank!= 2:
-    #     raise ValueError(f"Fundamental matrix given was of rank {f_rank}, expected 2")
     return F
 
 def estimate_F2(match_dict: dict):

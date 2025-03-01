@@ -19,24 +19,24 @@ def nonlinear_triangulation(camera_pose_1: np.ndarray, camera_pose_2: np.ndarray
         v1 = point1[1]
         u2 = point2[0]
         v2 = point2[1]
-        out = least_squares(error, X0, args=((u1, u2), (v1, v2), camera_pose_1, camera_pose_2), ftol=1e-10)
+        out = least_squares(error, X0, args=((u1, u2), (v1, v2), camera_pose_1, camera_pose_2), ftol=None)
         new_points.append(Coordinate(out.x))
     return new_points
 
 #         Optimized for
 def error(x_homogeneous, u_set, v_set, projection_matrix_1, projection_matrix_2):
-    out = np.zeros((2,1))
+    out = []
     p_list = [projection_matrix_1, projection_matrix_2]
     for i in range(2):
         P1 = p_list[i][0, :].reshape((1,4))  # We reshape these matrices otherwise the result
         P2 = p_list[i][1, :].reshape((1,4))  # is shape (3,) which is not the same as (1,3)
         P3 = p_list[i][2, :].reshape((1,4))
-        reproj_x = (P1 @ x_homogeneous) / (P3 @ x_homogeneous)  # 3x1 times 4,  TODO fix me
+        reproj_x = (P1 @ x_homogeneous) / (P3 @ x_homogeneous)
         reproj_y = (P2 @ x_homogeneous) / (P3 @ x_homogeneous)
         u = u_set[i]
         v = v_set[i]
-        out[i] = (u - reproj_x)**2 + (v - reproj_y)**2
-    return np.sum(out)
+        out.append(float(u - reproj_x)**2 + (v - reproj_y)**2)
+    return sum(out)
 
 
 def compare_triangulations(im_pair, K, P_identity, P_best_pose, non_linear_points: list[Coordinate], linear_points: list[Coordinate], inliers_dict: dict):
@@ -62,4 +62,19 @@ def compare_triangulations(im_pair, K, P_identity, P_best_pose, non_linear_point
     cv2.imshow("LT (left) NLT (Right)", new_im)
     cv2.waitKey(0)
     cv2.destroyAllWindows()
+
+def calc_error(camera_pose_1: np.ndarray, camera_pose_2: np.ndarray, triangulated_points: list[Coordinate], inliers_dict: dict):
+    points1_list, points2_list = util.pointlist_from_dict(inliers_dict)
+    err_total = 0
+    for i in range(len(triangulated_points)):  # Pixel objects
+        point1 = points1_list[i]
+        point2 = points2_list[i]
+        X0 = triangulated_points[i].to_arr(homogenous=True).flatten()  # Initial guess from linear trigulation
+        u1 = point1[0]
+        v1 = point1[1]
+        u2 = point2[0]
+        v2 = point2[1]
+        err = error(X0, (u1, u2), (v1, v2), camera_pose_1, camera_pose_2)
+        err_total += err
+    return err_total
     

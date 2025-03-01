@@ -87,67 +87,41 @@ def main():
     for key,value in inliers_dict.items():
         pair_lines.append((key, value))
     # EFM.visualizeEpipolarLines(F, pair_lines, copy.deepcopy(images[0]))
-    # F = EFM.estimate_F2(match_dictionaries[(1,2)])
-    # EFM.visualizeEpipolarLines(F, pair_lines, copy.deepcopy(images[0]))
     
     print(f"Percentage of inliers found: {round(100*len(inliers_dict)/len(match_dictionaries[(1,2)]))}%")
     # GIR.visualize_RANSAC((images[0], images[1]), match_dictionaries[(1,2)], inliers_dict)
-    # log.info(f"Fundamental Matricies:\n {F},\n {F2}")
 
     """Estimate Essential Matrix"""
     e_Mat = EMFFM.getEssentialFromF(F,k_Mat)
-    log.info(f" E FROM OUR VALUES\n {e_Mat}")
-    e_Mat2 = EMFFM.getEssentialFromcv2(match_dictionaries[(1,2)], k_Mat)
-    log.info(f" E FROM CV2 ALL features\n {e_Mat2}")
-    e_Mat3 = EMFFM.getEssentialFromcv2(inliers_dict, k_Mat)
-    log.info(f" E FROM CV2 Inliers\n {e_Mat3}")
-    log.info(f"DIFFERENCES\n{e_Mat-e_Mat2}\n{e_Mat-e_Mat3}\n{e_Mat2-e_Mat3}")
-    # exit(1)
-    # print(e_Mat2)
-    # log.info(f"Essential Matricies:\n {e_Mat},\n {e_Mat2}")
-    # R1, R2, t = cv2.decomposeEssentialMat(e_Mat)
-
-    # p1 = k_Mat @ R1 @ np.hstack((np.eye(3), t))
-    # p2 = k_Mat @ R2 @ np.hstack((np.eye(3), t))
-    # p3 = k_Mat @ R1 @ np.hstack((np.eye(3), -t))
-    # p4 = k_Mat @ R2 @ np.hstack((np.eye(3), -t))
     p_list = ECP.extract_camera_pose(e_Mat, k_Mat)
-
-    # log.info(f"Diff1\n{p1-p_list[0]}")
-    # log.info(f"Diff1\n{p2-p_list[1]}")
-    # log.info(f"Diff1\n{p3-p_list[2]}")
-    # log.info(f"Diff1\n{p4-p_list[3]}")
-    # exit(1)
-
     """Linear Triangulation"""
-    # P_Ident = k_Mat @ np.eye(3) @ np.hstack((np.eye(3), np.zeros((3,1))))
-    # log.info(P_Ident)
     x_set_list = []
+    # x_set2_list = []
     P_identity = k_Mat @ np.hstack((np.eye(3), np.zeros((3,1))))
+    P_Iden_list = [P_identity,P_identity,P_identity,P_identity]
     for i in range(4):
         x_set = LT.linear_triangulation(P_identity, p_list[i], inliers_dict)
         # x_set2 = LT.cv2triangulate(P_identity, p_list[i], inliers_dict)
-        # x_set_pix = []
-        # for i in range(x_set2.shape[1]):
-        #     a = Coordinate(x_set2[:, i], norm=True)
-        #     x_set_pix.append(a)
-            # print(x_set[i] - a)
-        # x_set_list.append(x_set_pix)
         x_set_list.append(x_set)
-        LT.visualize_triangulation(images[0], list(inliers_dict.keys()), x_set, P_identity)
-        #                            I1       points in I1        triag  P back to I1
+        # x_set2_list.append(x_set2)
+        """ 
+            When Projecting points onto image 1, use keys and Identity. 
+            When projecting points onto image 2, use values and p_list[i]
+        """
+        # LT.visualize_triangulation(images[0], list(inliers_dict.keys()), x_set, P_identity)
+        # LT.visualize_triangulation(images[1], list(inliers_dict.values()), x_set, p_list[i])
     LT.visualize_ambiguity(x_set_list)
+    # LT.visualize_ambiguity(x_set2_list)
     best_pose, best_x_set = DCP.disambiguate_camera_pose(p_list, x_set_list)
-    LT.visualize_triangulation(images[0], list(inliers_dict.keys()), best_x_set, P_identity)
-    exit(1)
+    LT.visualize_triangulation(images[1], list(inliers_dict.values()), best_x_set, best_pose)
+    """Non-Linear Optimization of correspondances"""
+    # TODO non-linear triangulation does improve the points, but not by any significant margin. 
+    # example improvement 3656.84-> 3647.73, or 2800.15 -> 2791.05
+    # Perhaps we need to be doing the projection of point 
 
-
-    """Non-Linear Optimization of correspandances"""
     points_3d = NLT.nonlinear_triangulation(P_identity, best_pose, best_x_set, inliers_dict)
-    # LT.visualize_triangulation(images[0], list(  inliers_dict.keys()), best_x_set, best_pose)
-    # LT.visualize_triangulation(images[1], list(inliers_dict.values()), best_x_set,  P_identity)
-    # LT.visualize_triangulation(images[0], list(  inliers_dict.keys()), points_3d, best_pose)
-    # LT.visualize_triangulation(images[1], list(inliers_dict.values()), points_3d,  P_identity)
+    print(f"LINEAR ERROR: {NLT.calc_error(P_identity, best_pose, best_x_set, inliers_dict)}")
+    print(f"NON-LINEAR ERROR: {NLT.calc_error(P_identity, best_pose, points_3d, inliers_dict)}")
     NLT.compare_triangulations((images[0], images[0]), k_Mat, P_identity, best_pose, points_3d, best_x_set, inliers_dict)
 
 if __name__ == '__main__':

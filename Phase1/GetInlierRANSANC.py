@@ -36,7 +36,6 @@ def getInlierRANSAC(matches_dict):
                 current_inliers[pt1] = pt2
         # visualize_err_graph(errors)
         if len(current_inliers.keys()) > len(inliers.keys()):
-            print(sum(errors))
             inliers = current_inliers
             best_F = F
     print("refinement step")
@@ -59,7 +58,6 @@ def refine_F(inliers):
         for pt1, pt2 in inliers.items():
             errors+= abs(loss((pt1,pt2), F))
         if errors < err_best:
-            print(errors)
             best_F = F
             err_best = errors
 
