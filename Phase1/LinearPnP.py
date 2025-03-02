@@ -22,9 +22,9 @@ def linear_pnp(correspondances: dict[Pixel, Coordinate], K: np.ndarray):
     U, D, Vt = np.linalg.svd(R)
     R = U @ Vt
     t = t / D[0]
-    if(abs(np.linalg.det(R)-(-1)) < 0.001):  # Accounting for float math, basically checking for det(R)=0
+    if(abs(np.linalg.det(R)-(-1)) < 0.001):  # Accounting for float math, basically checking for det(R)=-1
         R = -R
-        t = -t
+        # t = -t
     return R, t.reshape((3,1))
 
 

@@ -19,6 +19,5 @@ def disambiguate_camera_pose(t_list, triangulated_point_list: list[list[Coordina
             best_translation = transformation
             best_points = triangulated_points
             highest_positive_count = num_positive_depth_points
-        print(f"[{iter} num_pos_depth = {num_positive_depth_points}]")
         iter+=1
     return best_translation, best_points

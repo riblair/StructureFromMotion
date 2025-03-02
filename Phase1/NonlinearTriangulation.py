@@ -5,7 +5,7 @@ import numpy as np
 import cv2
 import copy
 import matplotlib
-# matplotlib.use("tkagg")
+matplotlib.use("tkagg")
 import matplotlib.pyplot as plt
 
 def nonlinear_triangulation(camera_pose_1: np.ndarray, camera_pose_2: np.ndarray, triangulated_points: list[Coordinate], inliers_dict: dict):
@@ -84,11 +84,11 @@ def compare_triangulations_top_down(points_3d, best_x_set, best_t):
         zn_list.append(pointN.z)
 
     # First subplot (top-left)
-    plt.scatter(xl_list, zl_list, c='red', linewidths=0.5, s=10)
-    plt.scatter(xn_list, zn_list, c='blue', linewidths=0.5, s=10)
+    plt.scatter(xl_list, zl_list, c='red', linewidths=0.5, s=3.5)
+    plt.scatter(xn_list, zn_list, c='blue', linewidths=0.5, s=3.5)
     plt.legend(["Linear", "Non-Linear"])
-    plt.scatter(0, 0, c='red', marker="^")
-    plt.scatter(best_t[0, 3], best_t[2, 3], c='Blue', marker="^")
+    plt.scatter(0, 0, c='Black', marker="^")
+    plt.scatter(-best_t[0, 3], -best_t[2, 3], c='Black', marker="^")
     plt.xlabel("X")
     plt.xlabel("Z")
     plt.title("Linear vs Non-Linear Triangulation")

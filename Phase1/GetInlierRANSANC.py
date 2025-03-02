@@ -4,13 +4,13 @@ from Pixel import Pixel
 import random
 from EstimateFundamentalMatrix import estimate_F
 import matplotlib
-matplotlib.use('qtagg')
+matplotlib.use("tkagg")
 import matplotlib.pyplot as plt
 
 
 
-MAX_ITER = 250
-THRESHOLD = 0.02
+MAX_ITER = 200
+THRESHOLD = 0.035
 
 def loss(point_pair: tuple[Pixel, Pixel], F_mat: np.ndarray):
     return point_pair[1].to_arr(homogenous=True).T @ F_mat @ point_pair[0].to_arr(homogenous=True)

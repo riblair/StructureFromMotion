@@ -2,8 +2,8 @@ import numpy as np
 from Pixel import Pixel, Coordinate
 import Utilities as util
 import cv2
-# import matplotlib
-# matplotlib.use("tkagg")
+import matplotlib
+matplotlib.use("tkagg")
 import matplotlib.pyplot as plt
 import copy
 

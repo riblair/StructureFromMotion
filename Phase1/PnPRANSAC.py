@@ -9,26 +9,17 @@ MAX_ITER = 500
 THRESHOLD = 20000.0
 
 def linear_pnp_RANSAC(correspondances: dict[Pixel, Coordinate], pix_correspondances: dict[Pixel,Pixel], K: np.ndarray, image=None):
-    # util.draw_features_on_image(image, list(correspondances), list(pix_correspondances))
+    util.draw_features_on_image(image, list(correspondances), list(pix_correspondances))
     best_inliers = dict()
     # Pixels in 1 to X 
-    pixel_list_old = list(correspondances)
-    print(len(pixel_list_old))
-    
+    pixel_list_old = list(correspondances)    
     # Pixels in 1 to 3
     pixel_list_in_new = list(pix_correspondances)
-    print(len(pixel_list_in_new))
-    # Im 1 pixels with values in pix_correspondances
-    # pixel_overlaps = set(pixel_list_old) & set(pixel_list_in_new)
     pixel_1_2, pixel_2_1 = util.extract_intersection(pixel_list_old, pixel_list_in_new)
-
-    print(len(pixel_1_2))
     new_correspondances = dict()
     for pix_1_2, pix_2_1 in zip(pixel_1_2, pixel_2_1):
         new_correspondances[pix_correspondances[pix_2_1]] = correspondances[pix_1_2]
-
     pixel_list_corr = list(new_correspondances)
-    print(len(pixel_list_corr))
     best_pose = None
     errors = []
     for __ in range(MAX_ITER):

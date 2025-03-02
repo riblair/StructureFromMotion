@@ -4,7 +4,7 @@ from Pixel import Pixel
 import Utilities as util
 import copy
 import matplotlib
-matplotlib.use('qtagg')
+matplotlib.use("tkagg")
 
 """
     `eight_point_pair` is a list of length 8 with tuples of pixels.
