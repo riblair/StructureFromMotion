@@ -10,6 +10,13 @@ class Pixel():
             return np.array([[self.u],[self.v],[1]], dtype=dtype)
         else:
             return np.array([[self.u], [self.v]], dtype=dtype)
+        
+    def __sub__(self, x: 'Pixel'):
+        return Pixel(self.u-x.u, self.v-x.v)
+    
+    def pix_equals(self, x: 'Pixel'):
+        return abs(self.u - x.u) < 0.001 and abs(self.v - x.v) < 0.001
+
 class Coordinate():
     def __init__(self, coord_array, norm=False):
         if norm:

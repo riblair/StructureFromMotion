@@ -1,45 +1,70 @@
 import numpy as np
 import LinearPnP as LPnP
-from Pixel import *
+from Pixel import Pixel, Coordinate
 import random
 import matplotlib.pyplot as plt
+import Utilities as util
 
-MAX_ITER = 300
-THRESHOLD = 3e6
+MAX_ITER = 500
+THRESHOLD = 20000.0
 
-def linear_pnp_RANSAC(correspondances: dict[Pixel, Coordinate], K: np.ndarray):
-    n=0
-    pixel_list = list(correspondances)
-    best_inliers = []
+def linear_pnp_RANSAC(correspondances: dict[Pixel, Coordinate], pix_correspondances: dict[Pixel,Pixel], K: np.ndarray, image=None):
+    # util.draw_features_on_image(image, list(correspondances), list(pix_correspondances))
+    best_inliers = dict()
+    # Pixels in 1 to X 
+    pixel_list_old = list(correspondances)
+    print(len(pixel_list_old))
+    
+    # Pixels in 1 to 3
+    pixel_list_in_new = list(pix_correspondances)
+    print(len(pixel_list_in_new))
+    # Im 1 pixels with values in pix_correspondances
+    # pixel_overlaps = set(pixel_list_old) & set(pixel_list_in_new)
+    pixel_1_2, pixel_2_1 = util.extract_intersection(pixel_list_old, pixel_list_in_new)
+
+    print(len(pixel_1_2))
+    new_correspondances = dict()
+    for pix_1_2, pix_2_1 in zip(pixel_1_2, pixel_2_1):
+        new_correspondances[pix_correspondances[pix_2_1]] = correspondances[pix_1_2]
+
+    pixel_list_corr = list(new_correspondances)
+    print(len(pixel_list_corr))
     best_pose = None
     errors = []
-    for i in range(MAX_ITER):
-        eight_pixels = random.sample(pixel_list, 6)
-        sub_correspondances = {k: correspondances[k] for k in eight_pixels if k in correspondances}
+    for __ in range(MAX_ITER):
+        six_pixels = random.sample(pixel_list_corr, 6)
+        sub_correspondances = {k: new_correspondances[k] for k in six_pixels if k in new_correspondances}
         R, t = LPnP.linear_pnp(sub_correspondances, K)
-        P = K @ np.hstack((R,t))
-        inliers = []
-        for j in range(len(pixel_list)):
-            pixel = pixel_list[j]
-            coord = correspondances[pixel].to_arr(homogenous=True)
-            error = (pixel.u - (P[0,:] @ coord / P[2, :] @ coord))**2 + (pixel.v - (P[1,:] @ coord / P[2, :] @ coord))**2
-            error = abs(error)
-            errors.append(float(error))
+        C = -np.linalg.inv(np.transpose(R)) @ t
+        P = K @ np.hstack((R, -C))
+        inliers = dict()
+        for j in range(len(pixel_list_corr)):
+            pixel = pixel_list_corr[j]
+            reproj_pix = util.reproject_point(P, new_correspondances[pixel])
+            pixel_diff = pixel-reproj_pix
+            error = float(pixel_diff.u**2 + pixel_diff.v**2)
+            errors.append(error)
             if error < THRESHOLD:
-                inliers.append(j)  # TODO: Actually append something useful? Unsure where this is used later since we are estimating P
-        if n < len(inliers):
-            n = len(inliers)
+                inliers[pixel] = new_correspondances[pixel]
+        if len(best_inliers) < len(inliers):
             best_inliers = inliers
-            best_pose = P
-    visualize_err_graph(errors)
-    print(f"{n} inliers found: {n/len(pixel_list)*100}%")
+            best_pose = (R, C)
+        
+    # visualize_err_graph(errors)
+    print(f"PnP RANSAC Results:\n-------------------\n{len(best_inliers)} inliers found: {len(best_inliers)/len(pixel_list_corr)*100}%")
+    print(f"Removed {len(pixel_list_corr) - len(best_inliers)} outliers.")
+
     return best_pose
 
+# def refine_PnP(best_inliers):
+#     pass
+
+
 def visualize_err_graph(errors):
-    
-    plt.hist(errors, bins=10000)
+    print(len(errors))
+    plt.hist(errors, bins=1000)
     plt.axvline(x=THRESHOLD, color='red', linestyle='--',
                 linewidth=2, label=f'x = {THRESHOLD}')
-    # plt.ylim([0, 500])
+    plt.ylim([0, 200])
     # plt.xlim([0, 10])
     plt.show()

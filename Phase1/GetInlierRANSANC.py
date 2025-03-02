@@ -38,7 +38,7 @@ def getInlierRANSAC(matches_dict):
         if len(current_inliers.keys()) > len(inliers.keys()):
             inliers = current_inliers
             best_F = F
-    print("refinement step")
+    # print("refinement step")
     F = refine_F(inliers)
     return best_F, inliers
 

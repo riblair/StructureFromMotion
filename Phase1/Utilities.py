@@ -3,8 +3,11 @@ import cv2
 import os
 import csv
 import logging
+import copy
 from Pixel import Pixel, Coordinate
 logger = logging.getLogger(__name__)
+from scipy.spatial.transform import Rotation as R
+import matplotlib.pyplot as plt
 
 
 def load_images(im_path: str, num_images: int, flags: int = cv2.IMREAD_GRAYSCALE) -> tuple[list[cv2.Mat], list[str]]:
@@ -131,3 +134,82 @@ def pointlist_from_dict(match_dict:dict, homogenous=False) -> tuple[list[np.ndar
         points1.append(key.to_arr(homogenous=homogenous))
         points2.append(value.to_arr(homogenous=homogenous))
     return points1, points2
+
+def r_to_quaternion(r_mat: np.ndarray):
+    quat = R.from_matrix(r_mat).as_quat()
+    return np.array(quat).reshape((4,1))
+
+def quaternion_to_r(q: np.ndarray):
+    r_mat = R.from_quat(q).as_matrix()
+    return np.array(r_mat)
+
+def draw_features_on_image(image: np.ndarray, feature_list: list[Pixel], second_list: list[Pixel]=None):
+    im_copy = copy.deepcopy(image)
+
+
+    for pix in feature_list:
+        cv2.circle(im_copy, (int(pix.u), int(pix.v)), radius=3, color=(0, 0, 255), thickness=-1)
+
+    if second_list:
+        for pix in second_list:
+            cv2.circle(im_copy, (int(pix.u), int(pix.v)), radius=2, color=(0, 255, 0), thickness=-1)
+    cv2.imshow("sift features", im_copy)
+    cv2.waitKey(0)
+    cv2.destroyAllWindows()
+
+def extract_intersection(list_1: list[Pixel], list_2: list[Pixel]):
+    intersect1_2 = []
+    intersect2_1 = []
+    for pixelA in list_1:
+        for pixelB in list_2:
+            if pixelA.pix_equals(pixelB):
+                intersect1_2.append(pixelA)
+                intersect2_1.append(pixelB)
+                break
+    return intersect1_2, intersect2_1
+
+def draw_pointcloud3D(X, R_set, C_set):
+
+    fig = plt.figure()
+    ax = fig.add_subplot(projection='2d')
+    
+    x_list = []
+    y_list = []
+    z_list = []
+
+    for point in X:
+        x_list.append(point.x)
+        y_list.append(point.y)
+        z_list.append(point.z)
+    ax.scatter(x_list, y_list, z_list, s=0.5)
+
+    for R,C in zip(R_set, C_set):
+        ax.scatter(C[0],C[1], C[2], c='Blue', marker="^")
+    
+    ax.set_xlim([-20, 20])
+    ax.set_ylim([-20, 20])
+    ax.set_zlim([-20, 20])
+
+    plt.show()
+
+
+def draw_pointcloud2D(X, R_set, C_set):
+
+    fig = plt.figure()
+    ax = fig.add_subplot()
+    
+    x_list = []
+    z_list = []
+
+    for point in X:
+        x_list.append(point.x)
+        z_list.append(point.z)
+    ax.scatter(x_list, z_list, s=0.5)
+
+    for R,C in zip(R_set, C_set):
+        ax.scatter(C[0], C[2], c='Blue', marker="^")
+    
+    ax.set_xlim([-20, 20])
+    ax.set_ylim([-20, 20])
+
+    plt.show()

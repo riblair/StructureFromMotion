@@ -8,6 +8,7 @@ import numpy as np
 import random
 import os
 import Utilities as util
+import matplotlib.pyplot as plt
 # import matplotlib
 # matplotlib.use('qtagg')
 
@@ -21,6 +22,7 @@ import NonlinearTriangulation as NLT
 from Pixel import Pixel, Coordinate
 # import LinearPnP as LPnP
 import PnPRANSAC as PnP
+import NonlinearPnP as NLPnP
 
 def main():
     Parser = argparse.ArgumentParser()
@@ -85,6 +87,12 @@ def main():
 
     """Estimating F matrix between two images"""
     F, inliers_dict = GIR.getInlierRANSAC(match_dictionaries[(1,2)])
+    inlier_pair_dict = dict()
+    for i in range(1,len(images)):
+        for j in range(i+1, len(images)+1):
+            __, inlier_coorespondances = GIR.getInlierRANSAC(match_dictionaries[(i,j)])
+            inlier_pair_dict[(i,j)] = inlier_coorespondances
+
     pair_lines = []
     for key,value in inliers_dict.items():
         pair_lines.append((key, value))
@@ -128,29 +136,58 @@ def main():
         """
         # LT.visualize_triangulation(images[0], list(inliers_dict.keys()), x_set, P_identity)
         # LT.visualize_triangulation(images[1], list(inliers_dict.values()), x_set, p_list[i])
-    LT.visualize_ambiguity(x_set_list)
+    # LT.visualize_ambiguity(x_set_list)
     # LT.visualize_ambiguity(x_set2_list)
     best_t, best_x_set = DCP.disambiguate_camera_pose(t_list, x_set_list)
     best_pose = k_Mat @ best_t
-    LT.visualize_triangulation(images[1], list(inliers_dict.values()), best_x_set, best_pose)
+    # LT.visualize_triangulation(images[0], list(inliers_dict.keys()), best_x_set, P_identity)
     """Non-Linear Optimization of correspondances"""
-    # TODO non-linear triangulation does improve the points, but not by any significant margin. 
-    # example improvement 3656.84-> 3647.73, or 2800.15 -> 2791.05
-    # Perhaps we need to be doing the projection of point 
-
-    # The output 'correspondances' refers to the correspondance between a 2D point in the image and
-    # the 3D point in space. NOTE: Current just for image 1
-    points_3d, correspondances = NLT.nonlinear_triangulation(P_identity, best_pose, best_x_set, inliers_dict)
+    X, p1_to_X, p2_to_X = NLT.nonlinear_triangulation(P_identity, best_pose, best_x_set, inliers_dict)
     print(f"LINEAR ERROR: {NLT.calc_error(P_identity, best_pose, best_x_set, inliers_dict)}")
-    print(f"NON-LINEAR ERROR: {NLT.calc_error(P_identity, best_pose, points_3d, inliers_dict)}")
-    NLT.compare_triangulations_top_down(points_3d, best_x_set, best_t)
-    # exit(1)
+    print(f"NON-LINEAR ERROR: {NLT.calc_error(P_identity, best_pose, X, inliers_dict)}")
+    # NLT.compare_triangulations_top_down(X, best_x_set, best_t)
     # NLT.compare_triangulations((images[0], images[0]), k_Mat, P_identity, best_pose, points_3d, best_x_set, inliers_dict)
-    P = PnP.linear_pnp_RANSAC(correspondances, k_Mat)
-    Rt = np.linalg.inv(k_Mat) @ P
-    print(f"P: \n{P}")
-    print(f"R: \n{Rt[:, 0:3]}")
-    print(f"t: \n{Rt[:, 3]}")
+    # print(f"R: \n{best_t[0:3,0:3]}")
+    # print(f"t: \n{best_t[:, 3]}")
+    
+    ########################
+    # Rest of Images
+    ########################
+    
+    # inlier_pair_dict -> inliers match dict with key as (from, to) and value as aas
+    
+    R_set = [np.eye(3), best_t[:, 0:3]]
+    C_set = [np.zeros((3,1)), best_t[:,3]]
+    P_prev = best_pose
+    for i in range(2,len(images)):
+        # util.draw_features_on_image(images[i-1], list(p2_to_X), list(inlier_pair_dict[(i, i+1)] ))
+        # util.draw_features_on_image(images[i-1], list(inlier_pair_dict[(i, i+1)]))
+        # Register ith image using PnP       # THIS SHOULD BE THE last_p_to_X
+        R_new, C_new = PnP.linear_pnp_RANSAC(p1_to_X, inlier_pair_dict[(1,i+1)], k_Mat, images[0])
+        print(f"R: \n{R_new}")
+        print(f"C: \n{C_new}")
+        
+        # R_new, C_new = NLPnP.nonlinear_pnp(R_new, C_new, p2_to_X, k_Mat)
+        # print(f"R: \n{R_new}")
+        # print(f"C: \n{C_new}")
+        # exit(1)
+        R_set.append(R_new)
+        C_set.append(C_new)
+        
+        # Add new 3D points
+        P_new = k_Mat @ np.hstack((R_new, -C_new))
+        pixel_correspondances = inlier_pair_dict[(i-1, i)]
+        X_new = LT.linear_triangulation(P_prev, P_new, pixel_correspondances)  # Returns list[Coordinate]
+        # X_new, __, p2_to_X = NLT.nonlinear_triangulation(P_prev, P_new, X_new, pixel_correspondances)
+        
+        P_prev = P_new
+        X = set(X) | set(X_new)
+        
+        # Build Visability Matrix
+        
+        # Bundle Adjustment
+    
+        util.draw_pointcloud2D(X, R_set, C_set)
 
 if __name__ == '__main__':
     main()

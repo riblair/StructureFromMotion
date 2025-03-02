@@ -15,16 +15,18 @@ def nonlinear_triangulation(camera_pose_1: np.ndarray, camera_pose_2: np.ndarray
     points1_list, points2_list = util.pointlist_from_dict(inliers_dict)
     pixel_list = list(inliers_dict)
     new_points = []
-    correspondances = dict()  # Used in the future for PnP
+    X_to_1 = dict()  # Used in the future for PnP
+    X_to_2 = dict()
     for i in range(len(triangulated_points)):  # Pixel objects
         point1 = points1_list[i]
         point2 = points2_list[i]
         X0 = triangulated_points[i].to_arr(homogenous=True).flatten()  # Initial guess from linear trigulation
         out = least_squares(error, X0, args=((point1, point2), (camera_pose_1, camera_pose_2)), ftol=None)
         coord = Coordinate(out.x)
-        correspondances[pixel_list[i]] = coord
+        X_to_1[pixel_list[i]] = coord
+        X_to_2[inliers_dict[pixel_list[i]]] = coord
         new_points.append(coord)
-    return new_points, correspondances
+    return new_points, X_to_1, X_to_2
 
 #         Optimized for
 def error(x_homogeneous, points, projections):
