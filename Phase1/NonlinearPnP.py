@@ -10,7 +10,7 @@ def nonlinear_pnp(R0: np.ndarray, C0: np.ndarray, correspondances:dict[Pixel, Co
     result = out.x
     print(f"Result: {out.status}, Message: {out.message}")
     q = result[0:4]
-    C = result[4:]
+    C = result[4:].reshape((3,1))
     R = util.quaternion_to_r(q)
     return R, C
 
@@ -46,4 +46,4 @@ def loss_from_student_paper(X0, correspondances: dict[Pixel,Coordinate], K):
         pixel = pixel.to_arr(homogenous=True)
         loss = (pixel - (P @ coord))**2
         list_to_sum.append(loss)
-    return np.sum(np.array(list_to_sum))
+    return np.array(list_to_sum)

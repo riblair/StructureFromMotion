@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 
 
 MAX_ITER = 200
-THRESHOLD = 0.035
+THRESHOLD = 0.05 # 0.05 was good for most
 
 def loss(point_pair: tuple[Pixel, Pixel], F_mat: np.ndarray):
     return point_pair[1].to_arr(homogenous=True).T @ F_mat @ point_pair[0].to_arr(homogenous=True)
@@ -28,7 +28,6 @@ def getInlierRANSAC(matches_dict):
         for i in range(8):
             eight_pair.append((key_list[i], matches_dict[key_list[i]]))
         F = estimate_F(eight_pair)
-        # F = estimate_F2(matches_dict)
         for pt1, pt2 in matches_dict.items():
             err = abs(loss((pt1,pt2), F))
             errors.append(float(err))

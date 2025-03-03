@@ -55,13 +55,13 @@ def estimate_F2(match_dict: dict):
     F, __ = cv2.findFundamentalMat(points1, points2, cv2.FM_RANSAC, 0.1, 0.99)
     return F
 
-def visualizeEpipolarLines(F: np.ndarray, pixel_correspondances: list, img):
+def visualizeEpipolarLines(img: np.ndarray, F: np.ndarray, pixel_correspondances: list):
     """Visualizes the epipolar lines from stereo camera using the fundamental matrix F.
 
     Args:
+        img (_type_): The image to display the epipolar lines on. If F goes from image 1 to image 2, img should be image 2.
         F (np.ndarray): Fundamental Matrix
         points (list): List of Pixel correspondances between image 1 and image 2
-        img (_type_): The image to display the epipolar lines on. If F goes from image 1 to image 2, img should be image 2.
         
     Details:
         We draw the point correspondance from image 2 onto image 1. Since they are correspondances.

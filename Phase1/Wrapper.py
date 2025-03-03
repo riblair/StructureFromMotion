@@ -29,20 +29,30 @@ def main():
     k_Mat = util.parse_Camera_Instrinsics(DataPath)
 
     """Estimating F matrix between two images"""
-    F, inliers_dict = GIR.getInlierRANSAC(match_dictionaries[(1,2)])
+
+    # BAD MATCHES:  1-3, 1-4, 1-5, 2-5, 3-4 (PAIN),
+    # Good matches: 1-2, 2-3, 2-4, 3-5, 4-5
     inlier_pair_dict = dict()
+    F_dict = dict()
     for i in range(1,len(images)):
         for j in range(i+1, len(images)+1):
-            # print(f"({i},{j})")
-            __, inlier_coorespondances = GIR.getInlierRANSAC(match_dictionaries[(i,j)])
+            F, inlier_coorespondances = GIR.getInlierRANSAC(match_dictionaries[(i,j)])
             inlier_pair_dict[(i,j)] = inlier_coorespondances
+            F_dict[(i,j)] = F
 
-    pair_lines = []
-    for key,value in inliers_dict.items():
-        pair_lines.append((key, value))
+    first_pair = (1,2)
+    # F, first_inlier_set = GIR.getInlierRANSAC(match_dictionaries[first_pair])
+    F, first_inlier_set = F_dict[first_pair], inlier_pair_dict[first_pair]
+
+    # pair_lines = []
+    # for key,value in first_inlier_set.items():
+    #     pair_lines.append((key, value))
+    # EFM.visualizeEpipolarLines(images[first_pair[0]-1], F, pair_lines)
     
-    print(f"Percentage of inliers found: {round(100*len(inliers_dict)/len(match_dictionaries[(1,2)]))}%")
-   
+    print(f"Percentage of inliers found: {round(100*len(first_inlier_set)/len(match_dictionaries[first_pair]))}%")
+    # F2 = EFM.estimate_F2(match_dictionaries[first_pair])
+    # EFM.visualizeEpipolarLines(images[first_pair[0]-1], F2, pair_lines)
+    # exit(1)
     """Estimate Essential Matrix"""
     e_Mat = EMFFM.getEssentialFromF(F,k_Mat)
 
@@ -67,50 +77,86 @@ def main():
     # x_set2_list = []
     P_identity = k_Mat @ np.hstack((np.eye(3), np.zeros((3,1))))
     for i in range(4):
-        x_set = LT.linear_triangulation(P_identity, p_list[i], inliers_dict)
-        # x_set2 = LT.cv2triangulate(P_identity, p_list[i], inliers_dict)
+        x_set = LT.linear_triangulation(P_identity, p_list[i], first_inlier_set)
+        # x_set2 = LT.cv2triangulate(P_identity, p_list[i], first_inlier_set)
         x_set_list.append(x_set)
+    # LT.visualize_ambiguity(x_set_list)
     best_t, best_x_set = DCP.disambiguate_camera_pose(t_list, x_set_list)
     best_pose = k_Mat @ best_t
     # When Projecting points onto image 1, use keys and Identity. 
     # When projecting points onto image 2, use values and p_list[i]
-
+    # LT.visualize_triangulation(images[first_pair[0]-1], list(first_inlier_set), best_x_set, P_identity)
+    # util.draw_pointcloud2D(best_x_set, [np.eye(3), best_t[:,0:3]], [np.zeros((3,1)), -best_t[:, 3]])
     """Non-Linear Optimization of correspondances"""
-    X, p1_to_X, p2_to_X = NLT.nonlinear_triangulation(P_identity, best_pose, best_x_set, inliers_dict)
-    LT.visualize_triangulation(images[0], list(inliers_dict), X, P_identity)
-    LT.visualize_triangulation(images[1], list(inliers_dict.values()), X, best_pose)
-    # print(f"LINEAR ERROR: {NLT.calc_error(P_identity, best_pose, best_x_set, inliers_dict)}")
-    # print(f"NON-LINEAR ERROR: {NLT.calc_error(P_identity, best_pose, X, inliers_dict)}")
-
-    # exit(1)
+    X, p1_to_X, p2_to_X = NLT.nonlinear_triangulation(P_identity, best_pose, best_x_set, first_inlier_set)
+    # LT.visualize_triangulation(images[first_pair[0]-1], list(first_inlier_set), X, P_identity)
+    # util.draw_pointcloud2D(X, [np.eye(3), best_t[:,0:3]], [np.zeros((3,1)), -best_t[:, 3]])
+    print(f"LINEAR ERROR: {NLT.calc_error(P_identity, best_pose, best_x_set, first_inlier_set)}")
+    print(f"NON-LINEAR ERROR: {NLT.calc_error(P_identity, best_pose, X, first_inlier_set)}")
     print(f"R: \n{best_t[0:3,0:3]}")
     print(f"t: \n{-best_t[:, 3]}")
+    # usually around [0.85823854 0.15040683 0.49071824] for 1-2
+    # usually around [0.82190836 0.16795243 0.54429645] for 2-3 ...
+    # usually around [0.9311055  0.03814694 0.36274971] for 2-4... [0.96525889 0.04845211 0.25676384]
+    # usually around [ 0.68206627 -0.1470562   0.71635193] for 3-5 [0.72168504 0.11093733 0.68327418]
+    # usually around [0.59251233 0.17518985 0.7862809 ] for 4-5
     ########################
     # Rest of Images
     ########################
+
+    """Building relevent data structures for assembly"""
     R_set = [np.eye(3), best_t[:, 0:3]]
     C_set = [np.zeros((3,1)), -best_t[:,3]]
-    P_prev = P_identity
-    for i in range(2,len(images)):
-        R_new, C_new = PnP.linear_pnp_RANSAC(p1_to_X, inlier_pair_dict[(1,i+1)], k_Mat, images[0])
-        print(f"R: \n{R_new}")
-        print(f"C: \n{C_new}")
+    
+    poses = []
+    poses.append(P_identity)
+    poses.append(best_pose)
+
+    pixel_world_mappings = []
+    pixel_world_mappings.append(p1_to_X)
+    pixel_world_mappings.append(p2_to_X) # the same thing 
+
+
+    ## THIS SHOULD FAIL BECAUSE WE CANNOT DO THE INTERSECTION OF PIXELS FOR SOME REASON... INVESTIGATE
+    for i in range(3,len(images)+1):
+        #Dictionary containing pixels in new image that HAVE a corresponding world point already calculated
+        pix_new_world_mapped = util.build_all_correspondences(i, pixel_world_mappings, inlier_pair_dict)
+
+        R_new, C_new = PnP.linear_pnp_RANSAC(pix_new_world_mapped, k_Mat)
+        print(f"PnP - R: \n{R_new}")
+        print(f"PnP - C: \n{C_new}")
+        P_new = k_Mat @ np.hstack((R_new, -C_new))
+
+        # R_new, C_new = NLPnP.nonlinear_pnp(R_new, C_new, pix_new_world_mapped, k_Mat)
+        # P_best = NLPnP.nonlinear_pnp_2(P_new,pix_new_world_mapped,k_Mat)
+        print(f"NLPnP - R: \n{R_new}")
+        print(f"NLPnP - C: \n{C_new}")
         R_set.append(R_new)
         C_set.append(C_new)
-        
+        # cv2.solvePnP() # should investigate...
         # Add new 3D points
-        P_new = k_Mat @ np.hstack((R_new, -C_new))
-        pixel_correspondances = inlier_pair_dict[(1, i+1)]
-        X_new = LT.linear_triangulation(P_prev, P_new, pixel_correspondances)  # Returns list[Coordinate]
-        LT.visualize_triangulation(images[i], list(pixel_correspondances.values()), X_new, P_new)
-        X_new, __, p2_to_X = NLT.nonlinear_triangulation(P_prev, P_new, X_new, pixel_correspondances)
-        
-        # P_prev = P_new
-        X = set(X) | set(X_new)
-        
-        # Build Visability Matrix
-        # Bundle Adjustment
+        # Dict of pixels that DO NOT have a currently calculated world point
+        pix_old_pix_new_unmapped = util.build_pix_pix_correspondences_unmapped(pix_new_world_mapped, inlier_pair_dict[(i-1,i)])
+
+        # WE NEED TO GET ALL OF THE CORRESPONDENCES BETWEEN pixels_new_unmapped and pixels_prev to pixels new_unmapped.
+        # We should be very careful when making X_New NOT to recalculate points that have already been calculated. 
+        # We dont want to run this on the inliers dictionary, but rather the subset of pixels that dont already have a correspondances
+
+
+        X_new = LT.linear_triangulation(poses[-1], P_new, pix_old_pix_new_unmapped)  # Returns list[Coordinate]
+        # LT.visualize_triangulation(images[i], list(pixel_correspondances.values()), X_new, P_new)
+        X_new, __, pix_new_world_unmapped = NLT.nonlinear_triangulation(poses[-1], P_new, X_new, pix_old_pix_new_unmapped)
         util.draw_pointcloud2D(X_new, R_set, C_set)
+        
+        X.extend(X_new) # X and X_New are garunteed to be discrete sets
+
+        poses.append(P_new)
+        pixel_world_mappings.append(pix_new_world_unmapped)
+        util.draw_colored_pc2d(pixel_world_mappings, R_set, C_set)
+
+    # Build Visability Matrix
+
+    # Bundle Adjustment
 
 if __name__ == '__main__':
     main()

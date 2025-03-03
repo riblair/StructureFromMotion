@@ -207,16 +207,72 @@ def draw_features_on_image(image: np.ndarray, feature_list: list[Pixel], second_
     cv2.waitKey(0)
     cv2.destroyAllWindows()
 
-def extract_intersection(list_1: list[Pixel], list_2: list[Pixel]):
-    intersect1_2 = []
-    intersect2_1 = []
-    for pixelA in list_1:
-        for pixelB in list_2:
-            if pixelA.pix_equals(pixelB):
-                intersect1_2.append(pixelA)
-                intersect2_1.append(pixelB)
-                break
-    return intersect1_2, intersect2_1
+def build_pix_pix_correspondences_unmapped(pixel_j_world_j: dict[Pixel, Coordinate], pixel_i_pixel_j:dict[Pixel, Pixel]):
+
+    # need to get values in pix_i_pix_j that are not in pixel_j_world_j 
+    unmapped_dict = dict()
+    for pix_i, pix_j in pixel_i_pixel_j.items():
+        if pix_j not in pixel_j_world_j.keys():
+            unmapped_dict[pix_i] = pix_j
+    return unmapped_dict
+
+
+
+
+    # pixels_new_unmapped = build_all_differences(idx_pair[1], pixel_j_world_j, pixel_pixel_mappings)
+
+    # unmapped_dict = dict() # pix_i to pix_j unmapped
+    # inlier_dict = pixel_pixel_mappings[idx_pair]
+
+    # for pix_i, pix_j in inlier_dict.items():
+    #     if pix_j in pixels_new_unmapped:
+    #         unmapped_dict[pix_i] = pix_j
+
+
+""" Function Builds a new pixel to world correspondnces pixel_j_to_world_j based on intersection of sets"""
+def correspondences_intersection(pixel_i_world_i: dict[Pixel, Coordinate], pixel_i_pixel_j: dict[Pixel, Pixel]):
+    # This grabs all of the pixels that exist in both the mapping of pixel to world points, and pixels in image i to pixels in im j 
+    mapped_pixels_i_correpondences = set(pixel_i_world_i.keys()) & set(pixel_i_pixel_j.keys())
+    pixel_j_world_j = dict()
+    for pix_i in mapped_pixels_i_correpondences:
+        world_j_mapping = pixel_i_world_i[pix_i]
+        pixel_j_mapping = pixel_i_pixel_j[pix_i]
+        pixel_j_world_j[pixel_j_mapping] = world_j_mapping
+    return pixel_j_world_j
+
+def correspondences_union(pixel_world: dict[Pixel, Coordinate], new_pixel_world: dict[Pixel, Coordinate]):
+    combined_pixel_world = copy.deepcopy(pixel_world) # Copying ensure old pixel_world dict is unaffected THIS MIGHT BE A BAD IDEA, AS DEEP COPYS MAY CAUSE FUTURE SET STUFF TO FAIL!
+    for pixel, world_p in new_pixel_world.items():
+        if pixel not in pixel_world:
+            combined_pixel_world[pixel] = world_p
+        else:
+            print(f"Difference of Xs: {pixel_world[pixel]-world_p}")
+    return combined_pixel_world
+
+# """Used for generating all unmapped pixels in new image"""
+# def build_all_differences(new_im_index: int, pixel_j_world_j: dict[Pixel, Coordinate], pixel_pixel_mappings:dict[tuple[int,int], dict[Pixel, Pixel]]):
+#     pixel_pixel_j_mappings = set()
+#     for iter in range(1, new_im_index): # extend the list 
+#         pixel_pixel_j_mappings |= set(pixel_pixel_mappings[(iter,new_im_index)].keys()) # Values???
+#     unmapped_pixels = pixel_pixel_j_mappings-set(pixel_j_world_j.keys())
+#     return unmapped_pixels
+
+"""Function builds ALL pixel_j_world_j mappings from the list of pixel_word and pixel_pixel dictionaries"""
+def build_all_correspondences(new_im_index: int, pixel_world_mappings: list[dict[Pixel, Coordinate]], pixel_pixel_mappings:dict[tuple[int,int], dict[Pixel, Pixel]]):
+    pixel_j_world_j = dict()
+    pixel_pixel_j_mappings = []
+
+    for iter in range(1, new_im_index):
+        pixel_pixel_j_mappings.append(pixel_pixel_mappings[(iter,new_im_index)])
+
+    if len(pixel_world_mappings) != len(pixel_pixel_j_mappings): # one less as p1_w1 and p2_w2 are the same, so we exclude the latter
+        raise RuntimeError(f"Length of pixel_world+1 and pixel_pixel mappings should agree. p_w:{len(pixel_world_mappings)}, p_p:{len(pixel_pixel_j_mappings)}")
+
+    for pixel_i_world_i, pixel_i_pixel_j in zip(pixel_world_mappings, pixel_pixel_j_mappings):
+        new_correspondences = correspondences_intersection(pixel_i_world_i, pixel_i_pixel_j)
+        pixel_j_world_j = correspondences_union(pixel_j_world_j, new_correspondences)
+
+    return pixel_j_world_j
 
 def draw_pointcloud3D(X, R_set, C_set):
 
@@ -263,3 +319,31 @@ def draw_pointcloud2D(X, R_set, C_set):
     ax.set_ylim([-20, 20])
 
     plt.show()
+
+
+def draw_colored_pc2d(pix_world_mappings:list[dict[Pixel, Coordinate]], R_set, C_set):
+
+    fig = plt.figure()
+    ax = fig.add_subplot()
+    
+    
+    ax.scatter(0, 0, c='black', marker="^")
+    ax.set_label("Orign point (Camera 1)")
+    color_maps = ['red', 'orange', 'green', 'blue']
+
+    for i in range(len(pix_world_mappings)-1):
+        x_list = []
+        z_list = []
+        value_list = pix_world_mappings[i+1].values()
+        for point in value_list:
+            x_list.append(point.x)
+            z_list.append(point.z)
+        ax.scatter(x_list, z_list, c=color_maps[i], s=1)
+        
+        ax.scatter(C_set[i+1][0], C_set[i+1][2], c=color_maps[i], marker="^")
+        ax.set_label(f"Camera {i+2}")
+    ax.set_xlim([-20, 20])
+    ax.set_ylim([-20, 20])
+
+    plt.show()
+
