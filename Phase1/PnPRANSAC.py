@@ -5,8 +5,8 @@ import random
 import matplotlib.pyplot as plt
 import Utilities as util
 
-MAX_ITER = 500
-THRESHOLD = 20000.0
+MAX_ITER = 1000
+THRESHOLD = 100000.0
 
 def linear_pnp_RANSAC(correspondances: dict[Pixel, Coordinate], K: np.ndarray):
     best_inliers = dict()
@@ -44,11 +44,32 @@ def linear_pnp_RANSAC(correspondances: dict[Pixel, Coordinate], K: np.ndarray):
     print(f"PnP RANSAC Results:\n-------------------\n{len(best_inliers)} inliers found: {len(best_inliers)/len(pixel_list_corr)*100}%")
     print(f"Removed {len(pixel_list_corr) - len(best_inliers)} outliers.")
 
+    best_pose = refine_PnP(best_inliers, K)
+
     return best_pose
 
-# def refine_PnP(best_inliers):
-#     pass
-
+def refine_PnP(inliers: dict[Pixel, Coordinate], K: np.ndarray):
+    pixel_list_corr = list(inliers)
+    best_pose = None
+    best_error = float('inf')
+    error = 0
+    for __ in range(MAX_ITER):
+        error = 0
+        six_pixels = random.sample(pixel_list_corr, 6)
+        sub_inliers = {k: inliers[k] for k in six_pixels if k in inliers}
+        R, t = LPnP.linear_pnp(sub_inliers, K)
+        C = -np.linalg.inv(np.transpose(R)) @ t
+        P = K @ np.hstack((R, -C))
+        for j in range(len(pixel_list_corr)):
+            pixel = pixel_list_corr[j]
+            reproj_pix = util.reproject_point(P, inliers[pixel])
+            pixel_diff = pixel-reproj_pix
+            error += float(pixel_diff.u**2 + pixel_diff.v**2)
+        if error < best_error:
+            best_pose = (R, C)
+            best_error = error
+            print(best_error)
+    return best_pose
 
 def visualize_err_graph(errors):
     print(len(errors))

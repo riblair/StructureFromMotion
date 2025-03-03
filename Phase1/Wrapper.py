@@ -105,12 +105,12 @@ def main():
     ########################
     # Rest of Images
     ########################
-<<<<<<< HEAD
 
     """Building relevent data structures for assembly"""
     R_set = [np.eye(3), best_t[:, 0:3]]
-    C_set = [np.zeros((3,1)), -best_t[:,3]]
-    
+    C_set = [np.zeros((3,1)), -best_t[:,3].reshape((3,1))]
+    V, V_points = BVM.build_V_from_stratch(p1_to_X)
+    V, V_points = BVM.add_to_V(V, V_points, p2_to_X)
     poses = []
     poses.append(P_identity)
     poses.append(best_pose)
@@ -118,88 +118,37 @@ def main():
     pixel_world_mappings = []
     pixel_world_mappings.append(p1_to_X)
     pixel_world_mappings.append(p2_to_X) # the same thing 
-
-
-    ## THIS SHOULD FAIL BECAUSE WE CANNOT DO THE INTERSECTION OF PIXELS FOR SOME REASON... INVESTIGATE
+    P_prev = best_pose
     for i in range(3,len(images)+1):
-        #Dictionary containing pixels in new image that HAVE a corresponding world point already calculated
         pix_new_world_mapped = util.build_all_correspondences(i, pixel_world_mappings, inlier_pair_dict)
-
         R_new, C_new = PnP.linear_pnp_RANSAC(pix_new_world_mapped, k_Mat)
         print(f"PnP - R: \n{R_new}")
         print(f"PnP - C: \n{C_new}")
-        P_new = k_Mat @ np.hstack((R_new, -C_new))
+        # Dictionary containing pixels in new image that HAVE a corresponding world point already calculated
+        # pix_old_pix_new = inlier_pair_dict[(i-1,i)]
+        # pix_new_world_mapped = util.correspondences_intersection(pixel_world_mappings[-1], pix_old_pix_new)
 
-        # R_new, C_new = NLPnP.nonlinear_pnp(R_new, C_new, pix_new_world_mapped, k_Mat)
-        # P_best = NLPnP.nonlinear_pnp_2(P_new,pix_new_world_mapped,k_Mat)
-        print(f"NLPnP - R: \n{R_new}")
-        print(f"NLPnP - C: \n{C_new}")
-=======
-    
-    # inlier_pair_dict -> inliers match dict with key as (from, to) and value as aas
-    
-    R_set = [np.eye(3), best_t[:, 0:3].reshape((3,3))]
-    C_set = [np.zeros((3,1)), best_t[:,3].reshape((3,1))]
-    P_prev = best_pose
-    V, V_points = BVM.build_V_from_stratch(p1_to_X)
-    V, V_points = BVM.add_to_V(V, V_points, p2_to_X)
-    for i in range(2,len(images)):
-        # util.draw_features_on_image(images[i-1], list(p2_to_X), list(inlier_pair_dict[(i, i+1)] ))
-        # util.draw_features_on_image(images[i-1], list(inlier_pair_dict[(i, i+1)]))
-        # Register ith image using PnP       # THIS SHOULD BE THE last_p_to_X
-        R_new, C_new = PnP.linear_pnp_RANSAC(p1_to_X, inlier_pair_dict[(1,i+1)], k_Mat, images[0])
-        print(f"R: \n{R_new}")
-        print(f"C: \n{C_new}")
-        
-        # R_new, C_new = NLPnP.nonlinear_pnp(R_new, C_new, p2_to_X, k_Mat)
-        # print(f"R: \n{R_new}")
-        # print(f"C: \n{C_new}")
-        # exit(1)
->>>>>>> b92904d (Visibility Matrix and Bundle Adjustment)
+
         R_set.append(R_new)
         C_set.append(C_new)
-        # cv2.solvePnP() # should investigate...
-        # Add new 3D points
-<<<<<<< HEAD
-        # Dict of pixels that DO NOT have a currently calculated world point
-        pix_old_pix_new_unmapped = util.build_pix_pix_correspondences_unmapped(pix_new_world_mapped, inlier_pair_dict[(i-1,i)])
-
-        # WE NEED TO GET ALL OF THE CORRESPONDENCES BETWEEN pixels_new_unmapped and pixels_prev to pixels new_unmapped.
-        # We should be very careful when making X_New NOT to recalculate points that have already been calculated. 
-        # We dont want to run this on the inliers dictionary, but rather the subset of pixels that dont already have a correspondances
-
-
-        X_new = LT.linear_triangulation(poses[-1], P_new, pix_old_pix_new_unmapped)  # Returns list[Coordinate]
-        # LT.visualize_triangulation(images[i], list(pixel_correspondances.values()), X_new, P_new)
-        X_new, __, pix_new_world_unmapped = NLT.nonlinear_triangulation(poses[-1], P_new, X_new, pix_old_pix_new_unmapped)
-        util.draw_pointcloud2D(X_new, R_set, C_set)
-        
-        X.extend(X_new) # X and X_New are garunteed to be discrete sets
-
-        poses.append(P_new)
-        pixel_world_mappings.append(pix_new_world_unmapped)
-        util.draw_colored_pc2d(pixel_world_mappings, R_set, C_set)
-
-    # Build Visability Matrix
-
-    # Bundle Adjustment
-=======
         P_new = k_Mat @ np.hstack((R_new, -C_new))
         pixel_correspondances = inlier_pair_dict[(i-1, i)]
         X_new = LT.linear_triangulation(P_prev, P_new, pixel_correspondances)  # Returns list[Coordinate]
         X_new, __, p2_to_X = NLT.nonlinear_triangulation(P_prev, P_new, X_new, pixel_correspondances)
-        
+        util.draw_pointcloud2D(X_new, R_set, C_set)
         P_prev = P_new
         X = set(X) | set(X_new)
+        poses.append(P_new)
         
         # Build Visability Matrix
         V, V_points = BVM.add_to_V(V, V_points, p2_to_X)
+        pixel_world_mappings.append(p2_to_X)
         
         # Bundle Adjustment
         C_set, R_set, X = BA.bundle_adjustment(C_set, R_set, X, k_Mat, V, V_points)
+        
+        util.draw_colored_pc2d(pixel_world_mappings, R_set, C_set)
     
-    util.draw_pointcloud2D(X, R_set, C_set)
->>>>>>> b92904d (Visibility Matrix and Bundle Adjustment)
-
+    util.draw_pointcloud3D(X, R_set, C_set)
 if __name__ == '__main__':
     main()

@@ -278,7 +278,13 @@ def build_all_correspondences(new_im_index: int, pixel_world_mappings: list[dict
 def draw_pointcloud3D(X, R_set, C_set):
 
     fig = plt.figure()
-    ax = fig.add_subplot(projection='2d')
+    ax = fig.add_subplot(projection='3d')
+    color_maps = ['black', 'red', 'orange', 'green', 'blue']
+    iterator = 0
+    for R,C in zip(R_set, C_set):
+        ax.scatter(C[0],C[1], C[2], c=color_maps[iterator], marker="^", label=f"Camera {iterator+1} Location")
+        iterator+=1
+    
     
     x_list = []
     y_list = []
@@ -290,13 +296,15 @@ def draw_pointcloud3D(X, R_set, C_set):
         z_list.append(point.z)
     ax.scatter(x_list, y_list, z_list, s=0.5)
 
-    for R,C in zip(R_set, C_set):
-        ax.scatter(C[0],C[1], C[2], c='Blue', marker="^")
     
     ax.set_xlim([-20, 20])
     ax.set_ylim([-20, 20])
     ax.set_zlim([-20, 20])
 
+    ax.set_title("Point cloud of Unity Hall")
+    ax.set_xlabel("X")
+    ax.set_ylabel("Z")
+    ax.legend()
     plt.show()
 
 
@@ -327,9 +335,7 @@ def draw_colored_pc2d(pix_world_mappings:list[dict[Pixel, Coordinate]], R_set, C
     fig = plt.figure()
     ax = fig.add_subplot()
     
-    
-    ax.scatter(0, 0, c='black', marker="^")
-    ax.set_label("Orign point (Camera 1)")
+    ax.scatter(0, 0, c='black', marker="^", label=f"Camera {1} Origin")
     color_maps = ['red', 'orange', 'green', 'blue']
 
     for i in range(len(pix_world_mappings)-1):
@@ -339,12 +345,14 @@ def draw_colored_pc2d(pix_world_mappings:list[dict[Pixel, Coordinate]], R_set, C
         for point in value_list:
             x_list.append(point.x)
             z_list.append(point.z)
-        ax.scatter(x_list, z_list, c=color_maps[i], s=1)
+        ax.scatter(x_list, z_list, c=color_maps[i], s=1, label=f"Camera {i+2} points")
         
-        ax.scatter(C_set[i+1][0], C_set[i+1][2], c=color_maps[i], marker="^")
-        ax.set_label(f"Camera {i+2}")
+        ax.scatter(C_set[i+1][0], C_set[i+1][2], c=color_maps[i], marker="^", label=f"Camera {i+2} location")
     ax.set_xlim([-20, 20])
     ax.set_ylim([-20, 20])
-
+    ax.set_title("Point cloud of Unity Hall")
+    ax.set_xlabel("X")
+    ax.set_ylabel("Z")
+    ax.legend()
     plt.show()
 
