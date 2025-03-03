@@ -174,7 +174,8 @@ def skew_sym(w: np.ndarray):
     return out
 
 def reproject_point(p_mat: np.ndarray, X_coord: Coordinate) -> Pixel:
-    point_homogenous = X_coord.to_arr(homogenous=True)
+    if isinstance(X_coord, Coordinate):
+        point_homogenous = X_coord.to_arr(homogenous=True)
     reproj_u = (p_mat[0,:] @ point_homogenous) / (p_mat[2, :] @ point_homogenous)
     reproj_v = (p_mat[1,:] @ point_homogenous) / (p_mat[2, :] @ point_homogenous)
     return Pixel(reproj_u, reproj_v)

@@ -16,6 +16,8 @@ import NonlinearTriangulation as NLT
 from Pixel import Pixel, Coordinate
 import PnPRANSAC as PnP
 import NonlinearPnP as NLPnP
+import BuildVisibilityMatrix as BVM
+import BundleAdjustment as BA
 
 logger = logging.getLogger(__name__)
 
@@ -103,6 +105,7 @@ def main():
     ########################
     # Rest of Images
     ########################
+<<<<<<< HEAD
 
     """Building relevent data structures for assembly"""
     R_set = [np.eye(3), best_t[:, 0:3]]
@@ -131,10 +134,33 @@ def main():
         # P_best = NLPnP.nonlinear_pnp_2(P_new,pix_new_world_mapped,k_Mat)
         print(f"NLPnP - R: \n{R_new}")
         print(f"NLPnP - C: \n{C_new}")
+=======
+    
+    # inlier_pair_dict -> inliers match dict with key as (from, to) and value as aas
+    
+    R_set = [np.eye(3), best_t[:, 0:3].reshape((3,3))]
+    C_set = [np.zeros((3,1)), best_t[:,3].reshape((3,1))]
+    P_prev = best_pose
+    V, V_points = BVM.build_V_from_stratch(p1_to_X)
+    V, V_points = BVM.add_to_V(V, V_points, p2_to_X)
+    for i in range(2,len(images)):
+        # util.draw_features_on_image(images[i-1], list(p2_to_X), list(inlier_pair_dict[(i, i+1)] ))
+        # util.draw_features_on_image(images[i-1], list(inlier_pair_dict[(i, i+1)]))
+        # Register ith image using PnP       # THIS SHOULD BE THE last_p_to_X
+        R_new, C_new = PnP.linear_pnp_RANSAC(p1_to_X, inlier_pair_dict[(1,i+1)], k_Mat, images[0])
+        print(f"R: \n{R_new}")
+        print(f"C: \n{C_new}")
+        
+        # R_new, C_new = NLPnP.nonlinear_pnp(R_new, C_new, p2_to_X, k_Mat)
+        # print(f"R: \n{R_new}")
+        # print(f"C: \n{C_new}")
+        # exit(1)
+>>>>>>> b92904d (Visibility Matrix and Bundle Adjustment)
         R_set.append(R_new)
         C_set.append(C_new)
         # cv2.solvePnP() # should investigate...
         # Add new 3D points
+<<<<<<< HEAD
         # Dict of pixels that DO NOT have a currently calculated world point
         pix_old_pix_new_unmapped = util.build_pix_pix_correspondences_unmapped(pix_new_world_mapped, inlier_pair_dict[(i-1,i)])
 
@@ -157,6 +183,23 @@ def main():
     # Build Visability Matrix
 
     # Bundle Adjustment
+=======
+        P_new = k_Mat @ np.hstack((R_new, -C_new))
+        pixel_correspondances = inlier_pair_dict[(i-1, i)]
+        X_new = LT.linear_triangulation(P_prev, P_new, pixel_correspondances)  # Returns list[Coordinate]
+        X_new, __, p2_to_X = NLT.nonlinear_triangulation(P_prev, P_new, X_new, pixel_correspondances)
+        
+        P_prev = P_new
+        X = set(X) | set(X_new)
+        
+        # Build Visability Matrix
+        V, V_points = BVM.add_to_V(V, V_points, p2_to_X)
+        
+        # Bundle Adjustment
+        C_set, R_set, X = BA.bundle_adjustment(C_set, R_set, X, k_Mat, V, V_points)
+    
+    util.draw_pointcloud2D(X, R_set, C_set)
+>>>>>>> b92904d (Visibility Matrix and Bundle Adjustment)
 
 if __name__ == '__main__':
     main()
