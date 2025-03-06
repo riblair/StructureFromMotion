@@ -7,6 +7,10 @@ import imageio
 import torch
 import matplotlib.pyplot as plt
 import os
+import numpy as np
+import cv2
+import json
+from scipy.spacial.transform import Rotation as R
 
 from NeRFModel import *
 
@@ -23,6 +27,75 @@ def loadDataset(data_path, mode):
         images: images
         pose: corresponding camera pose in world frame
     """
+    image_width = 100
+    image_height = 100
+    K = np.array([[1, 0, image_width/2], [0, 1, image_height/2], [0, 0, 1]])
+    im_path = data_path+mode+'/'
+    transforms_file_name = "transforms_"+ mode + ".json"
+    # list of dictionaries...
+    # Turn Transformation matrix into Camera Pose 
+        # "pose": Camera Pose can be a (6,1) => [x, y, z, r, p, y]^T
+        # "idx": Image index (number appended to file name)
+    
+    with open(transforms_file_name, 'r') as fp:
+        data = json.load(fp)
+        
+    camera_angle_x = data["camera_angle_x"]
+    
+
+    poses = dict()
+    poses["camera_angle_x"] = camera_angle_x
+    pose_list = []
+
+    for frame in data["frames"]:
+        pose_dictionary = dict()
+        yaw = frame["rotation"] # NOTE: we are assuming the "rotation" is the yaw value...
+        t_mat = np.array([frame["transform_matrix"]])
+        r_mat = t_mat[0:3, 0:3]
+
+        rot = R.from_matrix(r_mat)
+
+        roll_r,pitch_r,yaw_r = rot.as_euler('xyz')
+
+        # COMPARE yaw and yaw_r
+        print(f"Given Yaw? {yaw}, Euler yaw {yaw_r}")
+        exit(1)
+        pose_dictionary["camera_pose"] = np.array([t_mat[0,3], t_mat[1,3], t_mat[2, 3], roll_r, pitch_r, yaw]).T
+        pose_dictionary["idx"] = int(frame["file_path"].split("_")[1])
+        pose_list.append(pose_dictionary)
+        # use rot matrix to get euler angles...
+        
+    poses["pose_list"] = pose_list
+    # Two images lists:
+    # 1. RGB images (used by all modes)
+    # 2. Depth images (used by only test mode, None otherwise)
+
+    images = []
+    depth_images = [] if mode == 'test' else None
+    filenames = os.listdir(im_path)
+
+    i = 0
+    while( i < len(filenames)):
+        # NOTE: If there actually was a file that wasn't png format, then directly removing it
+        # will skip the next index. If two .jpg files were next to each other, this would
+        # only remove 1 .jpg file.
+        if ".png" not in filenames[i]:
+            filenames.remove(filenames[i]) 
+        else:
+            i+=1
+
+    for filename in filenames:
+        full_image_path = im_path+filename
+        image = cv2.imread(full_image_path)
+        if "depth" in filename:
+            if depth_images is None:
+                raise ValueError(f"""Depth image was found in dataset, but input mode is 
+                                 not test. Mode is currently {mode} instead""")
+            depth_images.append(image)
+        else:
+            images.append(image)
+
+    return poses, images, depth_images
 
 def PixelToRay(camera_info, pose, pixelPosition, args):
     """
@@ -57,13 +130,13 @@ def render(model, rays_origin, rays_direction, args):
     """
 
 def loss(groundtruth, prediction):
-
+    pass
 
 def train(images, poses, camera_info, args):
-    
+    pass
 
 def test(images, poses, camera_info, args):
-
+    pass
 
 def main(args):
     # load data
