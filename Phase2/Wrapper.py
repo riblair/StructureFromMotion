@@ -3,14 +3,15 @@ import glob
 from tqdm import tqdm
 import random
 from torch.utils.tensorboard import SummaryWriter
-import imageio
+# import imageio
 import torch
 import matplotlib.pyplot as plt
 import os
 import numpy as np
 import cv2
 import json
-from scipy.spacial.transform import Rotation as R
+from scipy.spatial.transform import Rotation as R
+import Utilities as util
 
 from NeRFModel import *
 
@@ -31,7 +32,7 @@ def loadDataset(data_path, mode):
     image_height = 100
     K = np.array([[1, 0, image_width/2], [0, 1, image_height/2], [0, 0, 1]])
     im_path = data_path+mode+'/'
-    transforms_file_name = "transforms_"+ mode + ".json"
+    transforms_file_name = data_path+"transforms_"+ mode + ".json"
     # list of dictionaries...
     # Turn Transformation matrix into Camera Pose 
         # "pose": Camera Pose can be a (6,1) => [x, y, z, r, p, y]^T
@@ -50,17 +51,17 @@ def loadDataset(data_path, mode):
     for frame in data["frames"]:
         pose_dictionary = dict()
         yaw = frame["rotation"] # NOTE: we are assuming the "rotation" is the yaw value...
-        t_mat = np.array([frame["transform_matrix"]])
+        t_mat = np.squeeze(np.array([frame["transform_matrix"]]))
         r_mat = t_mat[0:3, 0:3]
 
         rot = R.from_matrix(r_mat)
 
-        roll_r,pitch_r,yaw_r = rot.as_euler('xyz')
+        roll_r,pitch_r,yaw_r = rot.as_euler('XYZ')
 
         # COMPARE yaw and yaw_r
-        print(f"Given Yaw? {yaw}, Euler yaw {yaw_r}")
-        exit(1)
-        pose_dictionary["camera_pose"] = np.array([t_mat[0,3], t_mat[1,3], t_mat[2, 3], roll_r, pitch_r, yaw]).T
+        # print(f"Given Yaw? {yaw}, Euler roll {roll_r}, pitch {pitch_r}, yaw {yaw_r}")
+        # exit(1)
+        pose_dictionary["camera_pose"] = np.array([t_mat[0,3], t_mat[1,3], t_mat[2, 3], roll_r, pitch_r, yaw_r]).T
         pose_dictionary["idx"] = int(frame["file_path"].split("_")[1])
         pose_list.append(pose_dictionary)
         # use rot matrix to get euler angles...
@@ -141,8 +142,9 @@ def test(images, poses, camera_info, args):
 def main(args):
     # load data
     print("Loading data...")
-    images, poses, camera_info = loadDataset(args.data_path, args.mode)
-
+    poses, images, camera_info = loadDataset(args.data_path, args.mode)
+    util.show_camera_frames(poses)
+    exit(1)
     if args.mode == 'train':
         print("Start training")
         train(images, poses, camera_info, args)
