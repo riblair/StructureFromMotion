@@ -43,24 +43,20 @@ def loadDataset(data_path, mode):
         
     camera_angle_x = data["camera_angle_x"]
     
-
     poses = dict()
     poses["camera_angle_x"] = camera_angle_x
     pose_list = []
 
     for frame in data["frames"]:
         pose_dictionary = dict()
-        yaw = frame["rotation"] # NOTE: we are assuming the "rotation" is the yaw value...
+        yaw = frame["rotation"] # NOTE: we currently think this represents the Objects rotation in 3D space, and is seperate from the cameras rotation.
         t_mat = np.squeeze(np.array([frame["transform_matrix"]]))
-        r_mat = t_mat[0:3, 0:3]
+        x_rot = np.array([[1, 0, 0], [0,-1,0], [0,0,-1]])
+        r_mat = t_mat[0:3, 0:3] @ x_rot
 
         rot = R.from_matrix(r_mat)
 
         roll_r,pitch_r,yaw_r = rot.as_euler('XYZ')
-
-        # COMPARE yaw and yaw_r
-        # print(f"Given Yaw? {yaw}, Euler roll {roll_r}, pitch {pitch_r}, yaw {yaw_r}")
-        # exit(1)
         pose_dictionary["camera_pose"] = np.array([t_mat[0,3], t_mat[1,3], t_mat[2, 3], roll_r, pitch_r, yaw_r]).T
         pose_dictionary["idx"] = int(frame["file_path"].split("_")[1])
         pose_list.append(pose_dictionary)
@@ -120,6 +116,10 @@ def generateBatch(images, poses, camera_info, args):
         A set of rays
     """
 
+
+
+
+
 def render(model, rays_origin, rays_direction, args):
     """
     Input:
@@ -134,6 +134,28 @@ def loss(groundtruth, prediction):
     pass
 
 def train(images, poses, camera_info, args):
+    # Init NeRF Model
+    model = NeRFmodel(np.zeros(shape=(3,1)), np.eye(3))
+    # Init Optimizer
+    optimizer = torch.optim.Adam(lr=5e-4, betas=[0.9, 0.999], eps=1e-7) #NOTE: Paper includes a decaying lr.  
+    # For epochs...
+    for i in tqdm(range(NUM_EPOCHS)):
+        epoch_loss = 0
+        # for iterations....
+        for j in tqdm(range(MAX_ITER)):
+            # generate batch
+            pose_batch, direction_batch = generateBatch(...)
+            # put into CUDA...
+            # forward pass
+            model.forward()
+            # calc loss
+            # backprop
+            # tabulate trainning error
+        # for validation set...
+            # tabulate validation error
+        # report loss
+        # save batch
+    # save final model 
     pass
 
 def test(images, poses, camera_info, args):

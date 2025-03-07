@@ -33,13 +33,15 @@ def show_camera_frames(pose_dictionary):
         t_list = [frame["camera_pose"][0], frame["camera_pose"][1], frame["camera_pose"][2]]
         t_vec = np.array(t_list).reshape((3,1))
         r_list = [float(frame["camera_pose"][3]), float(frame["camera_pose"][4]), float(frame["camera_pose"][5])]
-        rot = R.from_euler('xyz', np.array(r_list))
+        rot = R.from_euler('XYZ', np.array(r_list))
+
 
         r_mat = rot.as_matrix()
-        r_mat = np.vstack((np.hstack((r_mat, t_vec)), np.array([[0,0,0,1]])))
-        x2 = r_mat @ x_trans
-        y2 = r_mat @ y_trans 
-        z2 = r_mat @ z_trans  
+
+        t_mat = np.vstack((np.hstack((r_mat, t_vec)), np.array([[0,0,0,1]])))
+        x2 = t_mat @ x_trans
+        y2 = t_mat @ y_trans 
+        z2 = t_mat @ z_trans  
 
         xp_list.append(frame["camera_pose"][0])
         yp_list.append(frame["camera_pose"][1])
