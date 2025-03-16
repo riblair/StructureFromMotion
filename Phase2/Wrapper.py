@@ -6,10 +6,10 @@ from torch.utils.tensorboard import SummaryWriter
 # import imageio
 import torch
 import matplotlib.pyplot as plt
-import os
+
 import numpy as np
 import cv2
-import json
+
 from scipy.spatial.transform import Rotation as R
 import Utilities as util
 
@@ -17,82 +17,6 @@ from NeRFModel import *
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 np.random.seed(0)
-
-def loadDataset(data_path, mode):
-    """
-    Input:
-        data_path: dataset path
-        mode: train or test
-    Outputs:
-        camera_info: image width, height, camera matrix 
-        images: images
-        pose: corresponding camera pose in world frame
-    """
-    image_width = 100
-    image_height = 100
-    K = np.array([[1, 0, image_width/2], [0, 1, image_height/2], [0, 0, 1]])
-    im_path = data_path+mode+'/'
-    transforms_file_name = data_path+"transforms_"+ mode + ".json"
-    # list of dictionaries...
-    # Turn Transformation matrix into Camera Pose 
-        # "pose": Camera Pose can be a (6,1) => [x, y, z, r, p, y]^T
-        # "idx": Image index (number appended to file name)
-    
-    with open(transforms_file_name, 'r') as fp:
-        data = json.load(fp)
-        
-    camera_angle_x = data["camera_angle_x"]
-    
-    poses = dict()
-    poses["camera_angle_x"] = camera_angle_x
-    pose_list = []
-
-    for frame in data["frames"]:
-        pose_dictionary = dict()
-        yaw = frame["rotation"] # NOTE: we currently think this represents the Objects rotation in 3D space, and is seperate from the cameras rotation.
-        t_mat = np.squeeze(np.array([frame["transform_matrix"]]))
-        x_rot = np.array([[1, 0, 0], [0,-1,0], [0,0,-1]])
-        r_mat = t_mat[0:3, 0:3] @ x_rot
-
-        rot = R.from_matrix(r_mat)
-
-        roll_r,pitch_r,yaw_r = rot.as_euler('XYZ')
-        pose_dictionary["camera_pose"] = np.array([t_mat[0,3], t_mat[1,3], t_mat[2, 3], roll_r, pitch_r, yaw_r]).T
-        pose_dictionary["idx"] = int(frame["file_path"].split("_")[1])
-        pose_list.append(pose_dictionary)
-        # use rot matrix to get euler angles...
-        
-    poses["pose_list"] = pose_list
-    # Two images lists:
-    # 1. RGB images (used by all modes)
-    # 2. Depth images (used by only test mode, None otherwise)
-
-    images = []
-    depth_images = [] if mode == 'test' else None
-    filenames = os.listdir(im_path)
-
-    i = 0
-    while( i < len(filenames)):
-        # NOTE: If there actually was a file that wasn't png format, then directly removing it
-        # will skip the next index. If two .jpg files were next to each other, this would
-        # only remove 1 .jpg file.
-        if ".png" not in filenames[i]:
-            filenames.remove(filenames[i]) 
-        else:
-            i+=1
-
-    for filename in filenames:
-        full_image_path = im_path+filename
-        image = cv2.imread(full_image_path)
-        if "depth" in filename:
-            if depth_images is None:
-                raise ValueError(f"""Depth image was found in dataset, but input mode is 
-                                 not test. Mode is currently {mode} instead""")
-            depth_images.append(image)
-        else:
-            images.append(image)
-
-    return poses, images, depth_images
 
 def PixelToRay(camera_info, pose, pixelPosition, args):
     """
@@ -104,10 +28,18 @@ def PixelToRay(camera_info, pose, pixelPosition, args):
     Outputs:
         ray origin and direction
     """
+    t_mat = util.transform_from_pose(pose)
+    R = t_mat[0:3, 0:3]
+    x = np.array([[pixelPosition[0]], [pixelPosition[1]], [1]])
+    direction = np.linalg.inv(camera_info["K"] @ R) @ x
+    util.show_ray(t_mat, pose, direction)
+    exit(1)
 
-def generateBatch(images, poses, camera_info, args):
+
+def generateBatch(sample_space, images, poses, camera_info, args):
     """
     Input:
+        sample_space: the indices of all pixels that can still be sampled
         images: all images in dataset
         poses: corresponding camera pose in world frame
         camera_info: image width, height, camera matrix
@@ -116,8 +48,34 @@ def generateBatch(images, poses, camera_info, args):
         A set of rays
     """
 
+    # given a set of camera images, choose a random set of pixels from dataset 
+    sample_indices = np.random.choice(sample_space.shape[0], size=args.n_rays_batch, replace=False)
+    samples = sample_space[sample_indices]
+    new_sample_space = np.delete(sample_space, sample_indices)
+    cam_index_helper = camera_info["W"] * camera_info["H"]
+    print(len(new_sample_space))
+
+    # Returned obj creations
+    ground_truths = [] # list of pixel RBG values
+    ray_origins = []
+    ray_directions = []
 
 
+    for index in samples:
+        # each index is a pixel on one of the images, we just need to extract the image, row, col indices and get its ray, 
+        camera_index = index // cam_index_helper # index of camera from 0-99
+        remainder = index % cam_index_helper # index of pixel within image
+        v = remainder // camera_info["W"]
+        u = remainder % camera_info["W"]
+        if v > 799 or u > 799 or v < 0 or u < 0 or camera_index > 99 or camera_index < 0:
+            raise RuntimeError(f"Bad camera index or pixel encountered: Image: {camera_index}, Pixel: ({u},{v})")
+
+        ground_truths.append(images[camera_index][v,u])
+        ray_o, ray_d = PixelToRay(camera_info, poses[camera_index]["camera_pose"], (u,v), args)
+        # turn pixels to 
+
+
+    return ray_origins, ray_directions, ground_truths, new_sample_space
 
 
 def render(model, rays_origin, rays_direction, args):
@@ -134,28 +92,60 @@ def loss(groundtruth, prediction):
     pass
 
 def train(images, poses, camera_info, args):
+
+    NUM_EPOCHS = 30
+    MAX_ITER = args.max_iters
+    BATCH_SIZE = args.n_rays_batch
+    # total amount of data
+    data_total  = camera_info["W"] * camera_info["H"] * len(images)
+    batch_iterations = min(data_total / BATCH_SIZE, MAX_ITER)
+
     # Init NeRF Model
-    model = NeRFmodel(np.zeros(shape=(3,1)), np.eye(3))
+    # NOTE: with hierarchical sampling, we actually optimze two models at the same time...
+    model = NeRFmodel(60, 24, False)
     # Init Optimizer
-    optimizer = torch.optim.Adam(lr=5e-4, betas=[0.9, 0.999], eps=1e-7) #NOTE: Paper includes a decaying lr.  
-    # For epochs...
+    #NOTE: Paper includes a decaying lr.  
+    optimizer = torch.optim.Adam(model.parameters(), lr=5e-4, betas=[0.9, 0.999], eps=1e-7) 
+
     for i in tqdm(range(NUM_EPOCHS)):
         epoch_loss = 0
-        # for iterations....
-        for j in tqdm(range(MAX_ITER)):
+        # all pixels in image set arranges as indices.
+        samples = np.linspace(0, data_total-1, num=data_total, dtype=np.int64)
+        for j in tqdm(range(batch_iterations)):
             # generate batch
-            pose_batch, direction_batch = generateBatch(...)
-            # put into CUDA...
-            # forward pass
-            model.forward()
-            # calc loss
-            # backprop
+            ray_origins, ray_directions, ground_truths, samples = generateBatch(samples, images, poses["pose_list"], camera_info, args)
+            exit(1)
+            rgb = render()
+            mse_loss = loss()
+            
+            optimizer.zero_grad()
+            mse_loss.backwards()
+            optimizer.step()
+
+            epoch_loss += mse_loss.item()
             # tabulate trainning error
-        # for validation set...
-            # tabulate validation error
-        # report loss
+        
+        """ Validation step"""
+        with torch.no_grad():
+            pose_batch, direction_batch = generateBatch(...)
+            rgb = render()
+            val_mse_loss = loss().item()
+        
+        print(f"Validation Loss: {val_mse_loss}, Training Loss: {epoch_loss}")
         # save batch
-    # save final model 
+        SaveName = args.checkpoint_path + str(i) + "model.ckpt"
+
+        torch.save(
+            {
+                "epoch" : i,
+                "coarse_model_state_dict" : model.state_dict(),
+                # "fine_model_state_dict" : model.state_dict(),
+                "optimizer_state_dict" : optimizer.state_dict(),
+                "loss" : mse_loss,
+            },
+            SaveName,
+        )
+        print("\n" + SaveName + " Model Saved...")
     pass
 
 def test(images, poses, camera_info, args):
@@ -164,9 +154,9 @@ def test(images, poses, camera_info, args):
 def main(args):
     # load data
     print("Loading data...")
-    poses, images, camera_info = loadDataset(args.data_path, args.mode)
-    util.show_camera_frames(poses)
-    exit(1)
+    camera_info, poses, images, depth_images = util.loadDataset(args.data_path, args.mode)
+    # util.show_camera_frames(poses)
+    # exit(1)
     if args.mode == 'train':
         print("Start training")
         train(images, poses, camera_info, args)
@@ -182,7 +172,7 @@ def configParser():
     parser.add_argument('--lrate',default=5e-4,help="training learning rate")
     parser.add_argument('--n_pos_freq',default=10,help="number of positional encoding frequencies for position")
     parser.add_argument('--n_dirc_freq',default=4,help="number of positional encoding frequencies for viewing direction")
-    parser.add_argument('--n_rays_batch',default=32*32*4,help="number of rays per batch")
+    parser.add_argument('--n_rays_batch',default=4096,help="number of rays per batch")
     parser.add_argument('--n_sample',default=400,help="number of sample per ray")
     parser.add_argument('--max_iters',default=10000,help="number of max iterations for training")
     parser.add_argument('--logs_path',default="./logs/",help="logs path")
