@@ -107,4 +107,4 @@ class NeRFmodel(nn.Module):
         output = self.relu10(self.LL10(output))
         output = self.LL11(output)
 
-        return sigma, output
+        return output, sigma

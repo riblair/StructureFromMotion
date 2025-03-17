@@ -1,5 +1,6 @@
 import argparse
 import glob
+import math
 from tqdm import tqdm
 import random
 from torch.utils.tensorboard import SummaryWriter
@@ -42,7 +43,6 @@ def PixelToRay(camera_info, pose, pixelPosition, args):
     return t_mat[0:3, -1], d_norm.flatten()
 
 
-
 def generateBatch(sample_space, images, poses, camera_info, args):
     """
     Input:
@@ -63,7 +63,7 @@ def generateBatch(sample_space, images, poses, camera_info, args):
     # print(len(new_sample_space))
 
     # Returned obj creations
-    ground_truths = [] # list of pixel RBG values
+    ground_truths = [] # list of pixel RGB values
     ray_origins = []
     ray_directions = []
 
@@ -83,9 +83,66 @@ def generateBatch(sample_space, images, poses, camera_info, args):
 
     ray_origins = np.array(ray_origins)
     ray_directions = np.array(ray_directions)
-    ground_truths = np.array(ground_truths)
+    ground_truths = torch.tensor(np.array(ground_truths)) # gets sent straight to the loss fcn, so needs to be a tensor
     return ray_origins, ray_directions, ground_truths, new_sample_space
 
+def volume_rendering(rgbs, sigmas, args):
+    ##NOTE: as I needed to detach(), this methodology wont work...
+    # will probably need to do the operations in place...
+    """
+    Input:
+        ray_ts: linspace of ray distances 
+        rgbs: flattened tensor of model RGB outputs [B*S 3] 
+        sigmas: flattened tensor of model sigma outputs [B*S 1]
+        args: additional params
+    """
+    ray_ts = np.linspace(args.near, args.far, args.n_sample)
+    RGB_out = np.zeros((args.n_rays_batch, 3))
+
+    for i in range(0,rgbs.shape[0], args.n_sample):
+        T_sum = 0
+        color_sum = np.zeros((1,3))
+        ray_RGBS = rgbs[i:(i+args.n_sample), :] # [S 3]
+        ray_Sigmas = sigmas[i:(i+args.n_sample), :] # [S 1]
+
+        for j in range(len(ray_ts)-1):
+            delta_j = ray_ts[j+1] - ray_ts[j]
+            T_j = math.exp(-T_sum)
+            a_j = 1 - math.exp(-ray_Sigmas[j]*delta_j)
+            color_sum += T_j * a_j * ray_RGBS[j]
+            T_sum += ray_Sigmas[j] * delta_j
+
+        print(color_sum)
+        RGB_out[int(i/args.n_sample), :] = color_sum
+    return RGB_out
+
+def volume_rendering2(rgbs, sigmas, args):
+    # will probably need to do the operations in place...
+    """
+    Input:
+        ray_ts: linspace of ray distances 
+        rgbs: flattened tensor of model RGB outputs [B*S 3] 
+        sigmas: flattened tensor of model sigma outputs [B*S 1]
+        args: additional params
+    """
+    ray_ts = torch.linspace(args.near, args.far, args.n_sample)
+    deltas = ray_ts[1:] - ray_ts[:-1]
+    deltas = torch.cat([deltas, torch.tensor([1e10])]) # as mentioned in the NeRF repo, distance to the last element in 'infinity'   
+    # deltas = deltas.broadcast_to((args.n_sample, 1))
+    """ Dangerous operations incoming..."""
+    # each "ray" is comprised of sample points all ran through the forward pass. We unflatten the tensor to mirror this relation [B*S 3] -> [B S 3]
+
+    rgbs_reshaped = rgbs.reshape((args.n_rays_batch, args.n_sample, 3))
+    sigmas_reshaped = sigmas.reshape((args.n_rays_batch, args.n_sample))
+    
+    a = torch.exp(-sigmas_reshaped*deltas)
+    alphas = 1 - torch.exp(-a)
+    transmittance = torch.cumsum(a, -1)
+    weights = alphas * transmittance
+        # [4096, 100, 3] # [4096,100] [4096,100]
+    out = rgbs_reshaped * weights.unsqueeze(-1)
+    rgb_out = torch.sum(out, 1)
+    return rgb_out
 
 def render(model, rays_origin, rays_direction, args):
     """
@@ -96,9 +153,8 @@ def render(model, rays_origin, rays_direction, args):
     Outputs:
         rgb values of input rays
     """
-    # TODO:
-    """ Generate a set of points along the ray to query"""
 
+    """ Generate a set of points along the ray to query"""
     ray_ts = np.linspace(args.near, args.far, args.n_sample).reshape((args.n_sample,1)) * np.ones((1,3))
 
     batch_ray_points = np.zeros((args.n_sample * args.n_rays_batch, 3))
@@ -114,15 +170,18 @@ def render(model, rays_origin, rays_direction, args):
     """ Feed points into model to get RGB and sigma"""
     batch_ray_points = torch.tensor(batch_ray_points, dtype=torch.float32)
     rgbs, sigmas = model.forward(batch_ray_points, None)
-    print(rgbs)
-    print(sigmas)
-    exit(1)
+    # print(rgbs.shape)
+    # print(sigmas.shape)
+    # exit(1)
     """ Use volumetric rendering equation to generate actual RGB output from summated points"""
-        # RBG = volume_render...
+    # need a way to do this output running detach...
+    batch_rgb = volume_rendering2(rgbs, sigmas, args)
+    return batch_rgb
 
 def loss(groundtruth, prediction):
-    # given by Euclidean distance of G.T RGB to pred R.G.B
-    pass
+    # square diff of G.T RGB and pred RGB
+    diff = groundtruth - prediction
+    return torch.norm(diff)
 
 def train(images, poses, camera_info, args):
 
@@ -148,13 +207,13 @@ def train(images, poses, camera_info, args):
             # generate batch
             ray_origins, ray_directions, ground_truths, samples = generateBatch(samples, images, poses["pose_list"], camera_info, args)
             rgb = render(model, ray_origins, ray_directions,args)
-            mse_loss = loss()
-            
+            square_loss = loss(ground_truths, rgb)
+            print(f"Loss: {square_loss}")
             optimizer.zero_grad()
-            mse_loss.backwards()
+            square_loss.backward()
             optimizer.step()
 
-            epoch_loss += mse_loss.item()
+            epoch_loss += square_loss.item()
             # tabulate trainning error
         
         """ Validation step"""
@@ -173,7 +232,7 @@ def train(images, poses, camera_info, args):
                 "coarse_model_state_dict" : model.state_dict(),
                 # "fine_model_state_dict" : model.state_dict(),
                 "optimizer_state_dict" : optimizer.state_dict(),
-                "loss" : mse_loss,
+                "loss" : square_loss,
             },
             SaveName,
         )
