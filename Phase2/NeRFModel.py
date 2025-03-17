@@ -60,6 +60,7 @@ class NeRFmodel(nn.Module):
         # one last hidden layer to give us the final 128 feature vector
 
         self.LL11 = nn.Linear(128,3)
+        self.sig = nn.Sigmoid()
         # output layer after LL11, no ReLU
 
     def position_encoding(self, x, L):
@@ -106,5 +107,5 @@ class NeRFmodel(nn.Module):
             pass
         output = self.relu10(self.LL10(output))
         output = self.LL11(output)
-
+        output = self.sig(output)
         return output, sigma
