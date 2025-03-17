@@ -4,12 +4,13 @@ import numpy as np
 
 
 class NeRFmodel(nn.Module):
-    def __init__(self, embed_pos_L, embed_direction_L, pos_encoding):
+    def __init__(self, embed_pos_L, embed_direction_L, pos_encoding, dir_encoding):
         super(NeRFmodel, self).__init__()
         #############################
         # network initialization
         #############################
         self.pos_encoding = pos_encoding 
+        self.dir_encoding = dir_encoding
         self.pos_L = embed_pos_L
         self.dir_L = embed_direction_L
 
@@ -48,8 +49,10 @@ class NeRFmodel(nn.Module):
         # after forward through LL9, we get output sigma and 256 feature vector... 
         # No activation function for either...
         # we then concat lamda(d)
-        if pos_encoding:
+        if pos_encoding and dir_encoding:
             self.LL10 = nn.Linear(280,128)
+        elif dir_encoding:
+            self.LL10 = nn.Linear(258, 128)
         else:
             self.LL10 = nn.Linear(256, 128)
         self.relu10 = nn.ReLU()
@@ -71,7 +74,8 @@ class NeRFmodel(nn.Module):
         # network structure
         #############################
         PE_pos = self.position_encoding(pos, self.pos_L)
-        PE_dir = self.position_encoding(direction, self.pos_L)
+        if self.dir_encoding and self.pos_encoding:
+            PE_dir = self.position_encoding(direction, self.pos_L)
         if self.pos_encoding:
             output = self.relu1(self.LL1(PE_pos))
         else:
@@ -83,9 +87,9 @@ class NeRFmodel(nn.Module):
         output = self.relu5(self.LL5(output))
 
         if self.pos_encoding:
-            output = torch.cat(output, PE_pos)
+            output = torch.cat((output, PE_pos), dim=-1)
         else:
-            output = torch.cat(output, pos)
+            output = torch.cat((output, pos), dim=-1)
         output = self.relu6(self.LL6(output))
 
         output = self.relu7(self.LL7(output))
@@ -94,10 +98,12 @@ class NeRFmodel(nn.Module):
         sigma = self.LL_Sigma(output)
         output = self.LL9(output)
 
-        if self.pos_encoding:
-            output = torch.cat(output, PE_dir)
+        if self.pos_encoding and self.dir_encoding:
+            output = torch.cat((output, PE_dir), dim=-1)
+        elif self.dir_encoding:
+            output = torch.cat((output, direction), dim=-1)
         else:
-            output = torch.cat(output, direction)
+            pass
         output = self.relu10(self.LL10(output))
         output = self.LL11(output)
 

@@ -34,12 +34,12 @@ def PixelToRay(camera_info, pose, pixelPosition, args):
     x = np.array([[x_dir], [y_dir], [1]]) # NOTE: unsure if we need to normalize or not...
     # x_norm = x / np.linalg.norm(x)
     direction = t_mat[0:3,0:3] @ x
-    print(direction)
+    # print(direction)
     d_norm = direction / np.linalg.norm(direction)
 
     # util.show_ray(t_mat, pose, d_norm)
     # exit(1)
-    return t_mat[0:3, -1], d_norm
+    return t_mat[0:3, -1], d_norm.flatten()
 
 
 
@@ -60,7 +60,7 @@ def generateBatch(sample_space, images, poses, camera_info, args):
     samples = sample_space[sample_indices]
     new_sample_space = np.delete(sample_space, sample_indices)
     cam_index_helper = camera_info["W"] * camera_info["H"]
-    print(len(new_sample_space))
+    # print(len(new_sample_space))
 
     # Returned obj creations
     ground_truths = [] # list of pixel RBG values
@@ -71,7 +71,7 @@ def generateBatch(sample_space, images, poses, camera_info, args):
         # each index is a pixel on one of the images, we just need to extract the image, row, col indices and get its ray, 
         camera_index = index // cam_index_helper # index of camera from 0-99
         remainder = index % cam_index_helper # index of pixel within image
-        v = remainder // camera_info["W"]
+        v = remainder // camera_info["H"]
         u = remainder % camera_info["W"]
         if v > 799 or u > 799 or v < 0 or u < 0 or camera_index > 99 or camera_index < 0:
             raise RuntimeError(f"Bad camera index or pixel encountered: Image: {camera_index}, Pixel: ({u},{v})")
@@ -81,6 +81,9 @@ def generateBatch(sample_space, images, poses, camera_info, args):
         ray_origins.append(ray_o)
         ray_directions.append(ray_d)
 
+    ray_origins = np.array(ray_origins)
+    ray_directions = np.array(ray_directions)
+    ground_truths = np.array(ground_truths)
     return ray_origins, ray_directions, ground_truths, new_sample_space
 
 
@@ -88,19 +91,35 @@ def render(model, rays_origin, rays_direction, args):
     """
     Input:
         model: NeRF model
-        rays_origin: origins of input rays
-        rays_direction: direction of input rays
+        rays_origin: origins of input rays [B 3]
+        rays_direction: direction of input rays [B 3]
     Outputs:
         rgb values of input rays
     """
     # TODO:
     """ Generate a set of points along the ray to query"""
-        # test
+
+    ray_ts = np.linspace(args.near, args.far, args.n_sample).reshape((args.n_sample,1)) * np.ones((1,3))
+
+    batch_ray_points = np.zeros((args.n_sample * args.n_rays_batch, 3))
+    iterator = 0
+
+    for ray_o, ray_d in zip(rays_origin, rays_direction):           # element wise mult
+        ray_points = np.broadcast_to(ray_o, (args.n_sample, 3)) + np.broadcast_to(ray_d, (args.n_sample,3)) *  ray_ts # [400, 3]
+        # util.show_ray_points(ray_o, ray_points)
+        # exit(1)
+        batch_ray_points[iterator:iterator+args.n_sample, :] = ray_points
+        iterator += args.n_sample
+    
     """ Feed points into model to get RGB and sigma"""
-        # ...model.forward...
+    batch_ray_points = torch.tensor(batch_ray_points, dtype=torch.float32)
+    rgbs, sigmas = model.forward(batch_ray_points, None)
+    print(rgbs)
+    print(sigmas)
+    exit(1)
     """ Use volumetric rendering equation to generate actual RGB output from summated points"""
         # RBG = volume_render...
-        
+
 def loss(groundtruth, prediction):
     # given by Euclidean distance of G.T RGB to pred R.G.B
     pass
@@ -116,7 +135,7 @@ def train(images, poses, camera_info, args):
 
     # Init NeRF Model
     # NOTE: with hierarchical sampling, we actually optimze two models at the same time...
-    model = NeRFmodel(60, 24, False)
+    model = NeRFmodel(60, 24, False, False)
     # Init Optimizer
     #NOTE: Paper includes a decaying lr.  
     optimizer = torch.optim.Adam(model.parameters(), lr=5e-4, betas=[0.9, 0.999], eps=1e-7) 
@@ -128,8 +147,7 @@ def train(images, poses, camera_info, args):
         for j in tqdm(range(batch_iterations)):
             # generate batch
             ray_origins, ray_directions, ground_truths, samples = generateBatch(samples, images, poses["pose_list"], camera_info, args)
-            exit(1)
-            rgb = render()
+            rgb = render(model, ray_origins, ray_directions,args)
             mse_loss = loss()
             
             optimizer.zero_grad()
@@ -187,7 +205,9 @@ def configParser():
     parser.add_argument('--n_pos_freq',default=10,help="number of positional encoding frequencies for position")
     parser.add_argument('--n_dirc_freq',default=4,help="number of positional encoding frequencies for viewing direction")
     parser.add_argument('--n_rays_batch',default=4096,help="number of rays per batch")
-    parser.add_argument('--n_sample',default=400,help="number of sample per ray")
+    parser.add_argument('--n_sample',default=100,help="number of sample per ray")
+    parser.add_argument('--near',default=0,help="starting distance for sampling points on rays")
+    parser.add_argument('--far',default=3,help="ending distance for sampling points on rays")
     parser.add_argument('--max_iters',default=10000,help="number of max iterations for training")
     parser.add_argument('--logs_path',default="./logs/",help="logs path")
     parser.add_argument('--checkpoint_path',default="./Phase2/example_checkpoint/",help="checkpoints path")

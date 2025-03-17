@@ -197,7 +197,34 @@ def show_ray(t_mat, pose, direction):
 
     # add ray
     ray = np.reshape(pose[0:3], (3,1)) + direction
+    ray2 = np.reshape(pose[0:3], (3,1)) + 2*direction
+    # ray3 = np.reshape(pose[0:3], (3,1)) + 3*direction
 
     ax.plot([float(pose[0]), float(ray[0])], [float(pose[1]), float(ray[1])], [float(pose[2]), float(ray[2])], color='black')
+    ax.plot([float(pose[0]), float(ray2[0])], [float(pose[1]), float(ray2[1])], [float(pose[2]), float(ray2[2])], color='yellow')
+    # ax.plot([float(pose[0]), float(ray3[0])], [float(pose[1]), float(ray3[1])], [float(pose[2]), float(ray3[2])], color='cyan')
+
+    plt.show()
+
+def show_ray_points(ray_o, ray_points):
+    ## Show camera origin and axes
+    fig = plt.figure()
+    ax = fig.add_subplot(projection='3d')
+    ax.set_xlabel('X-Axis')
+    ax.set_ylabel('Y-Axis')
+    ax.set_zlabel('Z-Axis')
+    # add camera points
+    ax.scatter([ray_o[0]],[ray_o[1]],[ray_o[2]], marker='*')
+    # add origin
+    ax.scatter(0,0,0, c='black', marker='o', label='Origin')
+    ax.plot([0, 1], [0,0], [0,0], color='red')
+    ax.plot([0, 0], [0,1], [0,0], color='green')
+    ax.plot([0, 0], [0,0], [0,1], color='blue')
+    # add ray
+
+    ax.scatter(ray_points[:, 0].tolist(), ray_points[:, 1].tolist(), ray_points[:, 2].tolist(), marker='x')
+    # ax.plot([float(pose[0]), float(ray[0])], [float(pose[1]), float(ray[1])], [float(pose[2]), float(ray[2])], color='black')
+    # ax.plot([float(pose[0]), float(ray2[0])], [float(pose[1]), float(ray2[1])], [float(pose[2]), float(ray2[2])], color='yellow')
+    # ax.plot([float(pose[0]), float(ray3[0])], [float(pose[1]), float(ray3[1])], [float(pose[2]), float(ray3[2])], color='cyan')
 
     plt.show()
