@@ -37,11 +37,9 @@ def PixelToRay(camera_info, pose, pixelPosition, args):
     direction = t_mat[0:3,0:3] @ x
     # print(direction)
     d_norm = direction / np.linalg.norm(direction)
-
     # util.show_ray(t_mat, pose, d_norm)
     # exit(1)
     return t_mat[0:3, -1], d_norm.flatten()
-
 
 def generateBatch(sample_space, images, poses, camera_info, args):
     """
@@ -76,7 +74,9 @@ def generateBatch(sample_space, images, poses, camera_info, args):
         if v > 799 or u > 799 or v < 0 or u < 0 or camera_index > 99 or camera_index < 0:
             raise RuntimeError(f"Bad camera index or pixel encountered: Image: {camera_index}, Pixel: ({u},{v})")
 
-        ground_truths.append(images[camera_index][v,u])
+        gt_pixel = np.float32(images[camera_index][v,u]) # each element is (0-255)
+        # gt_pixel /= 255.0
+        ground_truths.append(gt_pixel)
         ray_o, ray_d = PixelToRay(camera_info, poses[camera_index]["camera_pose"], (u,v), args)
         ray_origins.append(ray_o)
         ray_directions.append(ray_d)
@@ -130,18 +130,26 @@ def volume_rendering2(rgbs, sigmas, args):
     deltas = torch.cat([deltas, torch.tensor([1e10])]) # as mentioned in the NeRF repo, distance to the last element in 'infinity'   
     # deltas = deltas.broadcast_to((args.n_sample, 1))
     """ Dangerous operations incoming..."""
-    # each "ray" is comprised of sample points all ran through the forward pass. We unflatten the tensor to mirror this relation [B*S 3] -> [B S 3]
-
-    rgbs_reshaped = rgbs.reshape((args.n_rays_batch, args.n_sample, 3))
-    sigmas_reshaped = sigmas.reshape((args.n_rays_batch, args.n_sample))
+    # each "ray" is comprised of sample points all ran through the forward pass. We unflatten the tensor to mirror this relation [B*S, 3] -> [B, S, 3]
     
-    a = torch.exp(-sigmas_reshaped*deltas)
+    rgbs_reshaped = rgbs.reshape((args.n_rays_batch, args.n_sample, 3)) 
+    sigmas_reshaped = sigmas.reshape((args.n_rays_batch, args.n_sample)) # [B, S] 
+    sigmas_reshaped = nn.functional.relu(sigmas_reshaped)
+
+    # alphas = 1 - torch.exp(-sigmas_reshaped*deltas)
+
+    # weights = alphas * torch.cumprod(1.0 - alphas+1e-10, dim=-1)
+    # rgb_out = torch.sum(rgbs_reshaped*weights.unsqueeze(-1), 1)
+    # return rgb_out
+    a = sigmas_reshaped*deltas
     alphas = 1 - torch.exp(-a)
-    transmittance = torch.cumsum(a, -1)
+    transmittance = torch.exp(-torch.cumsum(a, -1))
+    # transmittance = torch.cumprod(1-alphas+1e-10,-1)
     weights = alphas * transmittance
-        # [4096, 100, 3] # [4096,100] [4096,100]
+        # [4096, 100, 3] # [4096,100] -> [4096,100, 1]
     out = rgbs_reshaped * weights.unsqueeze(-1)
     rgb_out = torch.sum(out, 1)
+    print(f"random sigmas: {sigmas[0:2,0:2]}")
     return rgb_out
 
 def render(model, rays_origin, rays_direction, args):
@@ -157,11 +165,11 @@ def render(model, rays_origin, rays_direction, args):
     """ Generate a set of points along the ray to query"""
     ray_ts = np.linspace(args.near, args.far, args.n_sample).reshape((args.n_sample,1)) * np.ones((1,3))
 
-    batch_ray_points = np.zeros((args.n_sample * args.n_rays_batch, 3))
+    batch_ray_points = np.zeros((args.n_sample * args.n_rays_batch, 3)) # [B*S, 3]
     iterator = 0
 
     for ray_o, ray_d in zip(rays_origin, rays_direction):           # element wise mult
-        ray_points = np.broadcast_to(ray_o, (args.n_sample, 3)) + np.broadcast_to(ray_d, (args.n_sample,3)) *  ray_ts # [400, 3]
+        ray_points = np.broadcast_to(ray_o, (args.n_sample, 3)) + np.broadcast_to(ray_d, (args.n_sample,3)) *  ray_ts
         # util.show_ray_points(ray_o, ray_points)
         # exit(1)
         batch_ray_points[iterator:iterator+args.n_sample, :] = ray_points
@@ -178,26 +186,33 @@ def render(model, rays_origin, rays_direction, args):
     batch_rgb = volume_rendering2(rgbs, sigmas, args)
     return batch_rgb
 
-def loss(groundtruth, prediction):
+def loss(mse_obj: nn.MSELoss, groundtruth, prediction):
     # square diff of G.T RGB and pred RGB
-    diff = groundtruth - prediction
-    return torch.norm(diff)
+    # diff = groundtruth - prediction
+    # loss = torch.norm(diff)
+    # if loss > 1e6:
+    #     print(f"Big Loss {loss}")
+    # return torch.norm(diff)
+    return mse_obj(prediction, groundtruth)
 
-def train(images, poses, camera_info, args):
+def train(images, images_val, poses, poses_val, camera_info, args):
 
     NUM_EPOCHS = 30
     MAX_ITER = args.max_iters
     BATCH_SIZE = args.n_rays_batch
     # total amount of data
     data_total  = camera_info["W"] * camera_info["H"] * len(images)
+    data_total_val  = camera_info["W"] * camera_info["H"] * len(images_val)
     batch_iterations = min(data_total / BATCH_SIZE, MAX_ITER)
-
+    # batch_iterations = 2 # for testing val  code...
+    mse_obj = nn.MSELoss()
     # Init NeRF Model
     # NOTE: with hierarchical sampling, we actually optimze two models at the same time...
     model = NeRFmodel(60, 24, False, False)
     # Init Optimizer
     #NOTE: Paper includes a decaying lr.  
-    optimizer = torch.optim.Adam(model.parameters(), lr=5e-4, betas=[0.9, 0.999], eps=1e-7) 
+    # optimizer = torch.optim.Adam(model.parameters(), lr=5e-4, betas=[0.9, 0.999], eps=1e-7) 
+    optimizer = torch.optim.Adam(model.parameters(), lr=5e-4)
 
     for i in tqdm(range(NUM_EPOCHS)):
         epoch_loss = 0
@@ -206,9 +221,9 @@ def train(images, poses, camera_info, args):
         for j in tqdm(range(batch_iterations)):
             # generate batch
             ray_origins, ray_directions, ground_truths, samples = generateBatch(samples, images, poses["pose_list"], camera_info, args)
-            rgb = render(model, ray_origins, ray_directions,args)
-            square_loss = loss(ground_truths, rgb)
-            print(f"Loss: {square_loss}")
+            rgb = render(model, ray_origins, ray_directions, args)
+            square_loss = loss(mse_obj, ground_truths, rgb)
+            print(f"Loss: {square_loss}, rand_rgb: {rgb[0, :]}")
             optimizer.zero_grad()
             square_loss.backward()
             optimizer.step()
@@ -218,9 +233,10 @@ def train(images, poses, camera_info, args):
         
         """ Validation step"""
         with torch.no_grad():
-            pose_batch, direction_batch = generateBatch(...)
-            rgb = render()
-            val_mse_loss = loss().item()
+            samples2 = np.linspace(0, data_total_val-1, num=data_total_val, dtype=np.int64)
+            ray_origins_val, ray_directions_val, ground_truths_val, __ = generateBatch(samples2, images_val, poses_val["pose_list"], camera_info, args)
+            rgb_val = render(model, ray_origins_val, ray_directions_val, args)
+            val_mse_loss = loss(mse_obj, ground_truths_val, rgb_val).item()
         
         print(f"Validation Loss: {val_mse_loss}, Training Loss: {epoch_loss}")
         # save batch
@@ -246,11 +262,12 @@ def main(args):
     # load data
     print("Loading data...")
     camera_info, poses, images, depth_images = util.loadDataset(args.data_path, args.mode)
+    __, poses_val, images_val, depth_images_val = util.loadDataset(args.data_path, 'val') 
     # util.show_camera_frames(poses)
     # exit(1)
     if args.mode == 'train':
         print("Start training")
-        train(images, poses, camera_info, args)
+        train(images, images_val, poses, poses_val, camera_info, args)
     elif args.mode == 'test':
         print("Start testing")
         args.load_checkpoint = True
@@ -269,7 +286,7 @@ def configParser():
     parser.add_argument('--far',default=3,help="ending distance for sampling points on rays")
     parser.add_argument('--max_iters',default=10000,help="number of max iterations for training")
     parser.add_argument('--logs_path',default="./logs/",help="logs path")
-    parser.add_argument('--checkpoint_path',default="./Phase2/example_checkpoint/",help="checkpoints path")
+    parser.add_argument('--checkpoint_path',default="./Phase2/checkpoint/",help="checkpoints path")
     parser.add_argument('--load_checkpoint',default=True,help="whether to load checkpoint or not")
     parser.add_argument('--save_ckpt_iter',default=1000,help="num of iteration to save checkpoint")
     parser.add_argument('--images_path', default="./image/",help="folder to store images")
