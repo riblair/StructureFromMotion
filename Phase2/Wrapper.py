@@ -29,11 +29,18 @@ def PixelToRay(camera_info, pose, pixelPosition, args):
         ray origin and direction
     """
     t_mat = util.transform_from_pose(pose)
-    R = t_mat[0:3, 0:3]
-    x = np.array([[pixelPosition[0]], [pixelPosition[1]], [1]])
-    direction = np.linalg.inv(camera_info["K"] @ R) @ x
-    util.show_ray(t_mat, pose, direction)
-    exit(1)
+    x_dir = (pixelPosition[0]- camera_info["W"]*0.5) / camera_info["focal_length"]
+    y_dir = (pixelPosition[1] - camera_info["H"]*0.5) / camera_info["focal_length"]
+    x = np.array([[x_dir], [y_dir], [1]]) # NOTE: unsure if we need to normalize or not...
+    # x_norm = x / np.linalg.norm(x)
+    direction = t_mat[0:3,0:3] @ x
+    print(direction)
+    d_norm = direction / np.linalg.norm(direction)
+
+    # util.show_ray(t_mat, pose, d_norm)
+    # exit(1)
+    return t_mat[0:3, -1], d_norm
+
 
 
 def generateBatch(sample_space, images, poses, camera_info, args):
@@ -60,7 +67,6 @@ def generateBatch(sample_space, images, poses, camera_info, args):
     ray_origins = []
     ray_directions = []
 
-
     for index in samples:
         # each index is a pixel on one of the images, we just need to extract the image, row, col indices and get its ray, 
         camera_index = index // cam_index_helper # index of camera from 0-99
@@ -72,8 +78,8 @@ def generateBatch(sample_space, images, poses, camera_info, args):
 
         ground_truths.append(images[camera_index][v,u])
         ray_o, ray_d = PixelToRay(camera_info, poses[camera_index]["camera_pose"], (u,v), args)
-        # turn pixels to 
-
+        ray_origins.append(ray_o)
+        ray_directions.append(ray_d)
 
     return ray_origins, ray_directions, ground_truths, new_sample_space
 
@@ -87,8 +93,16 @@ def render(model, rays_origin, rays_direction, args):
     Outputs:
         rgb values of input rays
     """
-
+    # TODO:
+    """ Generate a set of points along the ray to query"""
+        # test
+    """ Feed points into model to get RGB and sigma"""
+        # ...model.forward...
+    """ Use volumetric rendering equation to generate actual RGB output from summated points"""
+        # RBG = volume_render...
+        
 def loss(groundtruth, prediction):
+    # given by Euclidean distance of G.T RGB to pred R.G.B
     pass
 
 def train(images, poses, camera_info, args):

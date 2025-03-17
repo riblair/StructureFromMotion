@@ -8,9 +8,20 @@ import json
 import os
 
 Q = 1
-X_TRANS = np.array([[1,0,0,Q], [0,1,0,0], [0,0,1,0], [0,0,0,1]])
-Y_TRANS = np.array([[1,0,0,0], [0,1,0,Q], [0,0,1,0], [0,0,0,1]])
-Z_TRANS = np.array([[1,0,0,0], [0,1,0,0], [0,0,1,Q], [0,0,0,1]])
+X_TRANS = np.array([[1,0,0,Q], 
+                    [0,1,0,0], 
+                    [0,0,1,0], 
+                    [0,0,0,1]])
+
+Y_TRANS = np.array([[1,0,0,0], 
+                    [0,1,0,Q], 
+                    [0,0,1,0], 
+                    [0,0,0,1]])
+
+Z_TRANS = np.array([[1,0,0,0], 
+                    [0,1,0,0], 
+                    [0,0,1,Q], 
+                    [0,0,0,1]])
 
 def loadDataset(data_path, mode):
     """
@@ -35,7 +46,9 @@ def loadDataset(data_path, mode):
     with open(transforms_file_name, 'r') as fp:
         data = json.load(fp)
     
-    camera_info = {"W": image_width, "H": image_height, "K": K, "focal_length": float(data["camera_angle_x"])}
+    # translation from camera_angle_x to focal length given on line 77 of NeRF repo load_blender.py
+    focal = .5 * image_width / np.tan(.5 * float(data["camera_angle_x"]))
+    camera_info = {"W": image_width, "H": image_height, "K": K, "focal_length": focal}
     poses = dict()
     pose_list = []
 
@@ -183,6 +196,8 @@ def show_ray(t_mat, pose, direction):
     ax.plot([0, 0], [0,0], [0,1], color='blue')
 
     # add ray
-    ax.plot([float(pose[0]), float(direction[0])], [float(pose[1]), float(direction[1])], [float(pose[2]), float(direction[2])], color='red')
+    ray = np.reshape(pose[0:3], (3,1)) + direction
+
+    ax.plot([float(pose[0]), float(ray[0])], [float(pose[1]), float(ray[1])], [float(pose[2]), float(ray[2])], color='black')
 
     plt.show()
