@@ -137,6 +137,7 @@ def volume_rendering2(rgbs, sigmas, args):
     ray_ts = torch.linspace(args.near, args.far, args.n_sample)
     deltas = ray_ts[1:] - ray_ts[:-1]
     deltas = torch.cat([deltas, torch.tensor([1e10])]) # as mentioned in the NeRF repo, distance to the last element in 'infinity'   
+    deltas.to(device)
     # deltas = deltas.broadcast_to((args.n_sample, 1))
     """ Dangerous operations incoming..."""
     # each "ray" is comprised of sample points all ran through the forward pass. We unflatten the tensor to mirror this relation [B*S, 3] -> [B, S, 3]
@@ -219,6 +220,7 @@ def train(images, images_val, poses, poses_val, camera_info, args):
     # Init NeRF Model
     # NOTE: with hierarchical sampling, we actually optimze two models at the same time...
     model = NeRFmodel(60, 24, False, False)
+    model.to(device)
     # Init Optimizer
     #NOTE: Paper includes a decaying lr.  
     # optimizer = torch.optim.Adam(model.parameters(), lr=5e-4, betas=[0.9, 0.999], eps=1e-7) 
@@ -332,6 +334,7 @@ def main(args):
     # exit(1)
     if args.mode == 'train':
         print("Start training")
+        print(f"Device: {device}")
         train(images, images_val, poses, poses_val, camera_info, args)
     elif args.mode == 'test':
         print("Start testing")
