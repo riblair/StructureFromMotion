@@ -172,11 +172,12 @@ def render(model, rays_origin, rays_direction, args):
         ray_points = np.broadcast_to(ray_o, (args.n_sample, 3)) + np.broadcast_to(ray_d, (args.n_sample,3)) *  ray_ts
         # util.show_ray_points(ray_o, ray_points)
         # exit(1)
-        batch_ray_points[iterator:iterator+args.n_sample, :] = ray_points
+        batch_ray_points[iterator:(iterator+args.n_sample), :] = ray_points
         iterator += args.n_sample
     
     """ Feed points into model to get RGB and sigma"""
     batch_ray_points = torch.tensor(batch_ray_points, dtype=torch.float32)
+    batch_ray_points.to(device)
     rgbs, sigmas = model.forward(batch_ray_points, None)
     # print(rgbs.shape)
     # print(sigmas.shape)
@@ -221,6 +222,7 @@ def train(images, images_val, poses, poses_val, camera_info, args):
         for j in tqdm(range(batch_iterations)):
             # generate batch
             ray_origins, ray_directions, ground_truths, samples = generateBatch(samples, images, poses["pose_list"], camera_info, args)
+            ground_truths.to(device)
             rgb = render(model, ray_origins, ray_directions, args)
             square_loss = loss(mse_obj, ground_truths, rgb)
             print(f"Loss: {square_loss}, rand_rgb: {rgb[0, :]}")
@@ -235,6 +237,7 @@ def train(images, images_val, poses, poses_val, camera_info, args):
         with torch.no_grad():
             samples2 = np.linspace(0, data_total_val-1, num=data_total_val, dtype=np.int64)
             ray_origins_val, ray_directions_val, ground_truths_val, __ = generateBatch(samples2, images_val, poses_val["pose_list"], camera_info, args)
+            ground_truths.to()
             rgb_val = render(model, ray_origins_val, ray_directions_val, args)
             val_mse_loss = loss(mse_obj, ground_truths_val, rgb_val).item()
         
@@ -248,15 +251,68 @@ def train(images, images_val, poses, poses_val, camera_info, args):
                 "coarse_model_state_dict" : model.state_dict(),
                 # "fine_model_state_dict" : model.state_dict(),
                 "optimizer_state_dict" : optimizer.state_dict(),
-                "loss" : square_loss,
             },
             SaveName,
         )
         print("\n" + SaveName + " Model Saved...")
     pass
 
+def generateImageBatch(image, pose, camera_info, args):
+    """
+    Input:
+        sample_space: the indices of all pixels that can still be sampled
+        images: all images in dataset
+        poses: corresponding camera pose in world frame
+        camera_info: image width, height, camera matrix
+        args: get batch size related information
+    Outputs:
+        A set of rays
+    """
+    indices = int((camera_info["H"] / args.scale_factor) * (camera_info["W"] / args.scale_factor))
+
+    samples = np.linspace(0,indices-1, indices, dtype=np.int32) * args.scale_factor # [0 4 8 12 ...]
+    # Returned obj creations
+    ground_truths = [] # list of pixel RGB values
+    ray_origins = []
+    ray_directions = []
+
+    for index in samples:
+        # each index is a pixel on one of the images, we just need to extract the image, row, col indices and get its ray, 
+        v = index // camera_info["H"]
+        u = index % camera_info["W"]
+        if v > 799 or u > 799 or v < 0 or u < 0:
+            raise RuntimeError(f"Bad pixel encountered: Pixel: ({u},{v})")
+
+        gt_pixel = np.float32(image[v,u]) # each element is (0-255)
+        # gt_pixel /= 255.0
+        ground_truths.append(gt_pixel)
+        ray_o, ray_d = PixelToRay(camera_info, pose, (u,v), args)
+        ray_origins.append(ray_o)
+        ray_directions.append(ray_d)
+
+    ray_origins = np.array(ray_origins)
+    ray_directions = np.array(ray_directions)
+    ground_truths = torch.tensor(np.array(ground_truths)) # gets sent straight to the loss fcn, so needs to be a tensor
+    return ray_origins, ray_directions, ground_truths
+
 def test(images, poses, camera_info, args):
-    pass
+
+    """Generate an image from camera poses"""
+    model = NeRFmodel(60,24,False,False)
+    args.n_rays_batch = int(camera_info["H"] / args.scale_factor * camera_info["W"] / args.scale_factor)
+    checkpoint = torch.load(args.checkpoint_path+"0model.ckpt", weights_only=True)
+
+    model.load_state_dict(checkpoint["coarse_model_state_dict"])
+    model.eval()
+    rays_origin, rays_direction, ground_truths = generateImageBatch(images[0], poses["pose_list"][0]["camera_pose"], camera_info, args)    
+    with torch.no_grad():
+        rgb = render(model, rays_origin, rays_direction, args)
+    rgb = rgb.detach().numpy()
+    rgb = np.uint8(rgb.reshape((int(camera_info["H"] / args.scale_factor), int(camera_info["W"] / args.scale_factor), 3)))
+    cv2.imshow("recreation", rgb)
+    cv2.imshow("original", images[0])
+    cv2.waitKey(0)
+    cv2.destroyAllWindows()
 
 def main(args):
     # load data
@@ -276,7 +332,7 @@ def main(args):
 def configParser():
     parser = argparse.ArgumentParser()
     parser.add_argument('--data_path',default="./Phase2/Data/lego/",help="dataset path")
-    parser.add_argument('--mode',default='train',help="train/test/val")
+    parser.add_argument('--mode',default='test',help="train/test/val")
     parser.add_argument('--lrate',default=5e-4,help="training learning rate")
     parser.add_argument('--n_pos_freq',default=10,help="number of positional encoding frequencies for position")
     parser.add_argument('--n_dirc_freq',default=4,help="number of positional encoding frequencies for viewing direction")
@@ -290,6 +346,7 @@ def configParser():
     parser.add_argument('--load_checkpoint',default=True,help="whether to load checkpoint or not")
     parser.add_argument('--save_ckpt_iter',default=1000,help="num of iteration to save checkpoint")
     parser.add_argument('--images_path', default="./image/",help="folder to store images")
+    parser.add_argument('--scale_factor', default=8, type=int, help='reduction ratio for final image')
     return parser
 
 if __name__ == "__main__":
