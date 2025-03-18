@@ -41,7 +41,7 @@ def PixelToRay(camera_info, pose, pixelPosition, args):
     # exit(1)
     return t_mat[0:3, -1], d_norm.flatten()
 
-def generateBatch(sample_space, images, poses, camera_info, args):
+def generateBatch(sample_space, images, poses, camera_info, args, epoch_count):
     """
     Input:
         sample_space: the indices of all pixels that can still be sampled
@@ -49,6 +49,7 @@ def generateBatch(sample_space, images, poses, camera_info, args):
         poses: corresponding camera pose in world frame
         camera_info: image width, height, camera matrix
         args: get batch size related information
+        epoch_count: the current epoch count.
     Outputs:
         A set of rays
     """
@@ -65,6 +66,12 @@ def generateBatch(sample_space, images, poses, camera_info, args):
     ray_origins = []
     ray_directions = []
 
+
+    max = 799 if epoch_count>5 else 599
+    min = 0 if epoch_count>5 else 200
+    u = 0
+    v = 0
+    camera_index = None
     for index in samples:
         # each index is a pixel on one of the images, we just need to extract the image, row, col indices and get its ray, 
         camera_index = index // cam_index_helper # index of camera from 0-99
@@ -73,9 +80,11 @@ def generateBatch(sample_space, images, poses, camera_info, args):
         u = remainder % camera_info["W"]
         if v > 799 or u > 799 or v < 0 or u < 0 or camera_index > 99 or camera_index < 0:
             raise RuntimeError(f"Bad camera index or pixel encountered: Image: {camera_index}, Pixel: ({u},{v})")
-
+            
+        # u = np.uint16(np.interp(u, [0, 799], [min, max]))
+        # v = np.uint16(np.interp(v, [0, 799], [min, max]))
         gt_pixel = np.float32(images[camera_index][v,u]) # each element is (0-255)
-        # gt_pixel /= 255.0
+        gt_pixel /= 255.0  # Normalizing the pixel before being inputted into the model
         ground_truths.append(gt_pixel)
         ray_o, ray_d = PixelToRay(camera_info, poses[camera_index]["camera_pose"], (u,v), args)
         ray_origins.append(ray_o)
@@ -221,7 +230,7 @@ def train(images, images_val, poses, poses_val, camera_info, args):
         samples = np.linspace(0, data_total-1, num=data_total, dtype=np.int64)
         for j in tqdm(range(batch_iterations)):
             # generate batch
-            ray_origins, ray_directions, ground_truths, samples = generateBatch(samples, images, poses["pose_list"], camera_info, args)
+            ray_origins, ray_directions, ground_truths, samples = generateBatch(samples, images, poses["pose_list"], camera_info, args, i)
             ground_truths.to(device)
             rgb = render(model, ray_origins, ray_directions, args)
             square_loss = loss(mse_obj, ground_truths, rgb)
@@ -284,7 +293,7 @@ def generateImageBatch(image, pose, camera_info, args):
             raise RuntimeError(f"Bad pixel encountered: Pixel: ({u},{v})")
 
         gt_pixel = np.float32(image[v,u]) # each element is (0-255)
-        # gt_pixel /= 255.0
+        gt_pixel /= 255.0
         ground_truths.append(gt_pixel)
         ray_o, ray_d = PixelToRay(camera_info, pose, (u,v), args)
         ray_origins.append(ray_o)
@@ -332,7 +341,7 @@ def main(args):
 def configParser():
     parser = argparse.ArgumentParser()
     parser.add_argument('--data_path',default="./Phase2/Data/lego/",help="dataset path")
-    parser.add_argument('--mode',default='test',help="train/test/val")
+    parser.add_argument('--mode',default='train',help="train/test/val")
     parser.add_argument('--lrate',default=5e-4,help="training learning rate")
     parser.add_argument('--n_pos_freq',default=10,help="number of positional encoding frequencies for position")
     parser.add_argument('--n_dirc_freq',default=4,help="number of positional encoding frequencies for viewing direction")

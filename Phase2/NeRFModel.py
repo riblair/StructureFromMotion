@@ -46,6 +46,7 @@ class NeRFmodel(nn.Module):
 
         self.LL9 = nn.Linear(256,256)
         self.LL_Sigma = nn.Linear(256,1)
+        self.leaky_ReLU = nn.LeakyReLU()
         # after forward through LL9, we get output sigma and 256 feature vector... 
         # No activation function for either...
         # we then concat lamda(d)
@@ -97,6 +98,7 @@ class NeRFmodel(nn.Module):
         output = self.relu8(self.LL8(output))
 
         sigma = self.LL_Sigma(output)
+        sigma = self.leaky_ReLU(sigma)
         output = self.LL9(output)
 
         if self.pos_encoding and self.dir_encoding:
