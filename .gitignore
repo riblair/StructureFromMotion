@@ -4,3 +4,5 @@ P2Data
 .vsls.json
 Data
 Phase2/checkpoint/
+SLURM_OUTPUT/
+download.sh

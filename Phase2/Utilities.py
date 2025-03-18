@@ -2,7 +2,7 @@ import cv2
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib
-matplotlib.use("tkagg")
+# matplotlib.use("tkagg")
 from scipy.spatial.transform import Rotation as R
 import json
 import os

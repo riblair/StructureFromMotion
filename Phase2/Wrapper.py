@@ -1,9 +1,9 @@
 import argparse
-import glob
+# import glob
 import math
 from tqdm import tqdm
-import random
-from torch.utils.tensorboard import SummaryWriter
+# import random
+# from torch.utils.tensorboard import SummaryWriter
 # import imageio
 import torch
 import matplotlib.pyplot as plt
@@ -17,7 +17,7 @@ import Utilities as util
 from NeRFModel import *
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-np.random.seed(0)
+np.random.seed(3)
 
 def PixelToRay(camera_info, pose, pixelPosition, args):
     """
