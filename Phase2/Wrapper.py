@@ -188,6 +188,8 @@ def render(model, rays_origin, rays_direction, args):
     """ Feed points into model to get RGB and sigma"""
     batch_ray_points = torch.tensor(batch_ray_points, dtype=torch.float32)
     batch_ray_points.to(device)
+    model.to(device)
+    print(f"Device (in render function): {device}")
     rgbs, sigmas = model.forward(batch_ray_points, None)
     # print(rgbs.shape)
     # print(sigmas.shape)
