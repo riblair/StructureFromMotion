@@ -215,10 +215,9 @@ def train(images, images_val, poses, poses_val, camera_info, args):
     for i in tqdm(range(NUM_EPOCHS)):
         epoch_loss = 0
         # all pixels in image set arranges as indices.
-        samples = np.linspace(0, data_total-1, num=data_total, dtype=np.int64)
         for j in tqdm(range(batch_iterations)):
             # generate batch
-            ray_origins, ray_directions, ground_truths, samples = generateBatch(samples, images, poses["pose_list"], camera_info, args, i)
+            ray_origins, ray_directions, ground_truths = generateBatch(images, poses["pose_list"], camera_info, args, i)
             ground_truths = ground_truths.to(device)
             rgb = render(model, ray_origins, ray_directions, args)
             square_loss = loss(mse_obj, ground_truths, rgb)
@@ -232,8 +231,7 @@ def train(images, images_val, poses, poses_val, camera_info, args):
         
         """ Validation step"""
         with torch.no_grad():
-            samples2 = np.linspace(0, data_total_val-1, num=data_total_val, dtype=np.int64)
-            ray_origins_val, ray_directions_val, ground_truths_val, __ = generateBatch(samples2, images_val, poses_val["pose_list"], camera_info, args, i)
+            ray_origins_val, ray_directions_val, ground_truths_val, __ = generateBatch(images_val, poses_val["pose_list"], camera_info, args, i)
             ground_truths_val = ground_truths_val.to(device)
             rgb_val = render(model, ray_origins_val, ray_directions_val, args)
             val_mse_loss = loss(mse_obj, ground_truths_val, rgb_val).item()

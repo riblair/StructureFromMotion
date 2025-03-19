@@ -2,10 +2,10 @@
 #SBATCH -N 1
 #SBATCH -n 24
 #SBATCH --mem=32g
-#SBATCH -J "Training Job w/ new loss fcn"
+#SBATCH -J "Training Job"
 #SBATCH -A rbe549
 #SBATCH -p academic
-#SBATCH -t 12:00:00
+#SBATCH -t 23:59:59
 #SBATCH --gres=gpu:1
 #SBATCH --error=SLURM_OUTPUT/slurm_train_%A.err
 #SBATCH --output=SLURM_OUTPUT/slurm_train_%A.out
