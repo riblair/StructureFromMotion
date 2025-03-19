@@ -55,34 +55,20 @@ def generateBatch(sample_space, images, poses, camera_info, args, epoch_count):
     """
 
     # given a set of camera images, choose a random set of pixels from dataset 
-    sample_indices = np.random.choice(sample_space.shape[0], size=args.n_rays_batch, replace=False)
-    samples = sample_space[sample_indices]
-    new_sample_space = np.delete(sample_space, sample_indices)
-    cam_index_helper = camera_info["W"] * camera_info["H"]
-    # print(len(new_sample_space))
-
+    max = 799 if epoch_count>5 else 599
+    min = 0 if epoch_count>5 else 200
+    image_idxs = np.random.random_integers(0, 99, (args.n_rays_batch,1))
+    us = np.random.random_integers(min, max, (args.n_rays_batch,1))
+    vs = np.random.random_integers(min, max, (args.n_rays_batch,1))
     # Returned obj creations
     ground_truths = [] # list of pixel RGB values
     ray_origins = []
     ray_directions = []
-
-
-    max = 799 if epoch_count>5 else 599
-    min = 0 if epoch_count>5 else 200
-    u = 0
-    v = 0
-    camera_index = None
-    for index in samples:
-        # each index is a pixel on one of the images, we just need to extract the image, row, col indices and get its ray, 
-        camera_index = index // cam_index_helper # index of camera from 0-99
-        remainder = index % cam_index_helper # index of pixel within image
-        v = remainder // camera_info["H"]
-        u = remainder % camera_info["W"]
-        if v > 799 or u > 799 or v < 0 or u < 0 or camera_index > 99 or camera_index < 0:
-            raise RuntimeError(f"Bad camera index or pixel encountered: Image: {camera_index}, Pixel: ({u},{v})")
-            
-        # u = np.uint16(np.interp(u, [0, 799], [min, max]))
-        # v = np.uint16(np.interp(v, [0, 799], [min, max]))
+    for i in range(0,args.n_rays_batch):
+        u = us[i]
+        v = vs[i]
+        camera_index = image_idxs[i]
+        
         gt_pixel = np.float32(images[camera_index][v,u]) # each element is (0-255)
         gt_pixel /= 255.0  # Normalizing the pixel before being inputted into the model
         ground_truths.append(gt_pixel)
@@ -93,7 +79,7 @@ def generateBatch(sample_space, images, poses, camera_info, args, epoch_count):
     ray_origins = np.array(ray_origins)
     ray_directions = np.array(ray_directions)
     ground_truths = torch.tensor(np.array(ground_truths)) # gets sent straight to the loss fcn, so needs to be a tensor
-    return ray_origins, ray_directions, ground_truths, new_sample_space
+    return ray_origins, ray_directions, ground_truths
 
 def volume_rendering(rgbs, sigmas, args):
     ##NOTE: as I needed to detach(), this methodology wont work...
