@@ -41,10 +41,9 @@ def PixelToRay(camera_info, pose, pixelPosition, args):
     # exit(1)
     return t_mat[0:3, -1], d_norm.flatten()
 
-def generateBatch(sample_space, images, poses, camera_info, args, epoch_count):
+def generateBatch(images, poses, camera_info, args, epoch_count):
     """
     Input:
-        sample_space: the indices of all pixels that can still be sampled
         images: all images in dataset
         poses: corresponding camera pose in world frame
         camera_info: image width, height, camera matrix
@@ -57,9 +56,9 @@ def generateBatch(sample_space, images, poses, camera_info, args, epoch_count):
     # given a set of camera images, choose a random set of pixels from dataset 
     max = 799 if epoch_count>5 else 599
     min = 0 if epoch_count>5 else 200
-    image_idxs = np.random.random_integers(0, 99, (args.n_rays_batch,1))
-    us = np.random.random_integers(min, max, (args.n_rays_batch,1))
-    vs = np.random.random_integers(min, max, (args.n_rays_batch,1))
+    image_idxs = np.random.random_integers(0, 99, (args.n_rays_batch,))
+    us = np.random.random_integers(min, max, (args.n_rays_batch,))
+    vs = np.random.random_integers(min, max, (args.n_rays_batch,))
     # Returned obj creations
     ground_truths = [] # list of pixel RGB values
     ray_origins = []
@@ -68,7 +67,7 @@ def generateBatch(sample_space, images, poses, camera_info, args, epoch_count):
         u = us[i]
         v = vs[i]
         camera_index = image_idxs[i]
-        
+
         gt_pixel = np.float32(images[camera_index][v,u]) # each element is (0-255)
         gt_pixel /= 255.0  # Normalizing the pixel before being inputted into the model
         ground_truths.append(gt_pixel)
