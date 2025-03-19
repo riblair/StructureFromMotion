@@ -9,7 +9,7 @@
 #SBATCH --gres=gpu:1
 #SBATCH --error=SLURM_OUTPUT/slurm_train_%A.err
 #SBATCH --output=SLURM_OUTPUT/slurm_train_%A.out
-#SBATCH --mail-user=rpblair@wpi.edu
+#SBATCH --mail-user=sbpena@wpi.edu
 #SBATCH --mail-type=ALL
 
 module load py-pip/24.0 

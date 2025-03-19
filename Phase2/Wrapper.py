@@ -137,7 +137,7 @@ def volume_rendering2(rgbs, sigmas, args):
     ray_ts = torch.linspace(args.near, args.far, args.n_sample)
     deltas = ray_ts[1:] - ray_ts[:-1]
     deltas = torch.cat([deltas, torch.tensor([1e10])]) # as mentioned in the NeRF repo, distance to the last element in 'infinity'   
-    deltas.to(device)
+    deltas = deltas.to(device)
     # deltas = deltas.broadcast_to((args.n_sample, 1))
     """ Dangerous operations incoming..."""
     # each "ray" is comprised of sample points all ran through the forward pass. We unflatten the tensor to mirror this relation [B*S, 3] -> [B, S, 3]
@@ -187,9 +187,7 @@ def render(model, rays_origin, rays_direction, args):
     
     """ Feed points into model to get RGB and sigma"""
     batch_ray_points = torch.tensor(batch_ray_points, dtype=torch.float32)
-    batch_ray_points.to(device)
-    model.to(device)
-    print(f"Device (in render function): {device}")
+    batch_ray_points = batch_ray_points.to("cuda")
     rgbs, sigmas = model.forward(batch_ray_points, None)
     # print(rgbs.shape)
     # print(sigmas.shape)
@@ -235,7 +233,7 @@ def train(images, images_val, poses, poses_val, camera_info, args):
         for j in tqdm(range(batch_iterations)):
             # generate batch
             ray_origins, ray_directions, ground_truths, samples = generateBatch(samples, images, poses["pose_list"], camera_info, args, i)
-            ground_truths.to(device)
+            ground_truths = ground_truths.to(device)
             rgb = render(model, ray_origins, ray_directions, args)
             square_loss = loss(mse_obj, ground_truths, rgb)
             print(f"Loss: {square_loss}, rand_rgb: {rgb[0, :]}")
@@ -249,8 +247,8 @@ def train(images, images_val, poses, poses_val, camera_info, args):
         """ Validation step"""
         with torch.no_grad():
             samples2 = np.linspace(0, data_total_val-1, num=data_total_val, dtype=np.int64)
-            ray_origins_val, ray_directions_val, ground_truths_val, __ = generateBatch(samples2, images_val, poses_val["pose_list"], camera_info, args)
-            ground_truths.to()
+            ray_origins_val, ray_directions_val, ground_truths_val, __ = generateBatch(samples2, images_val, poses_val["pose_list"], camera_info, args, i)
+            ground_truths_val = ground_truths_val.to(device)
             rgb_val = render(model, ray_origins_val, ray_directions_val, args)
             val_mse_loss = loss(mse_obj, ground_truths_val, rgb_val).item()
         
@@ -354,7 +352,7 @@ def configParser():
     parser.add_argument('--n_sample',default=100,help="number of sample per ray")
     parser.add_argument('--near',default=0,help="starting distance for sampling points on rays")
     parser.add_argument('--far',default=3,help="ending distance for sampling points on rays")
-    parser.add_argument('--max_iters',default=10000,help="number of max iterations for training")
+    parser.add_argument('--max_iters',default=1000,help="number of max iterations for training")
     parser.add_argument('--logs_path',default="./logs/",help="logs path")
     parser.add_argument('--checkpoint_path',default="./Phase2/checkpoint/",help="checkpoints path")
     parser.add_argument('--load_checkpoint',default=True,help="whether to load checkpoint or not")
