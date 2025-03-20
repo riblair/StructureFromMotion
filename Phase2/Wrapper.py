@@ -127,8 +127,8 @@ def volume_rendering2(rgbs, sigmas, args):
     """ Dangerous operations incoming..."""
     # each "ray" is comprised of sample points all ran through the forward pass. We unflatten the tensor to mirror this relation [B*S, 3] -> [B, S, 3]
     
-    rgbs_reshaped = rgbs.reshape((args.n_rays_batch, args.n_sample, 3)) 
-    sigmas_reshaped = sigmas.reshape((args.n_rays_batch, args.n_sample)) # [B, S] 
+    rgbs_reshaped = rgbs.reshape((int(rgbs.shape[0]/args.n_sample), args.n_sample, 3)) 
+    sigmas_reshaped = sigmas.reshape((int(rgbs.shape[0]/args.n_sample), args.n_sample)) # [B, S] 
     sigmas_reshaped = nn.functional.relu(sigmas_reshaped)
 
     # alphas = 1 - torch.exp(-sigmas_reshaped*deltas)
@@ -144,7 +144,7 @@ def volume_rendering2(rgbs, sigmas, args):
         # [4096, 100, 3] # [4096,100] -> [4096,100, 1]
     out = rgbs_reshaped * weights.unsqueeze(-1)
     rgb_out = torch.sum(out, 1)
-    print(f"random sigmas: {sigmas[0:2,0:2]}")
+    # print(f"random sigmas: {sigmas[0:2,0:2]}")
     return rgb_out
 
 def render(model, rays_origin, rays_direction, args):
@@ -160,7 +160,7 @@ def render(model, rays_origin, rays_direction, args):
     """ Generate a set of points along the ray to query"""
     ray_ts = np.linspace(args.near, args.far, args.n_sample).reshape((args.n_sample,1)) * np.ones((1,3))
 
-    batch_ray_points = np.zeros((args.n_sample * args.n_rays_batch, 3)) # [B*S, 3]
+    batch_ray_points = np.zeros((args.n_sample * rays_origin.shape[0], 3)) # [B*S, 3]
     iterator = 0
 
     for ray_o, ray_d in zip(rays_origin, rays_direction):           # element wise mult
@@ -172,7 +172,7 @@ def render(model, rays_origin, rays_direction, args):
     
     """ Feed points into model to get RGB and sigma"""
     batch_ray_points = torch.tensor(batch_ray_points, dtype=torch.float32)
-    batch_ray_points = batch_ray_points.to("cuda")
+    batch_ray_points = batch_ray_points.to(device)
     rgbs, sigmas = model.forward(batch_ray_points, None)
     # print(rgbs.shape)
     # print(sigmas.shape)
@@ -251,10 +251,10 @@ def train(images, images_val, poses, poses_val, camera_info, args):
         print("\n" + SaveName + " Model Saved...")
     pass
 
-def generateImageBatch(image, pose, camera_info, args):
+def generateImageBatch(samples, image, pose, camera_info, args):
     """
     Input:
-        sample_space: the indices of all pixels that can still be sampled
+        samples: the indices of all pixels that can still be sampled
         images: all images in dataset
         poses: corresponding camera pose in world frame
         camera_info: image width, height, camera matrix
@@ -262,9 +262,6 @@ def generateImageBatch(image, pose, camera_info, args):
     Outputs:
         A set of rays
     """
-    indices = int((camera_info["H"] / args.scale_factor) * (camera_info["W"] / args.scale_factor))
-
-    samples = np.linspace(0,indices-1, indices, dtype=np.int32) * args.scale_factor # [0 4 8 12 ...]
     # Returned obj creations
     ground_truths = [] # list of pixel RGB values
     ray_origins = []
@@ -294,16 +291,23 @@ def test(images, poses, camera_info, args):
     """Generate an image from camera poses"""
     model = NeRFmodel(60,24,False,False)
     args.n_rays_batch = int(camera_info["H"] / args.scale_factor * camera_info["W"] / args.scale_factor)
-    checkpoint = torch.load(args.checkpoint_path+"0model.ckpt", weights_only=True)
+    checkpoint = torch.load(args.checkpoint_path+"18model.ckpt", weights_only=True, map_location=device)
 
     model.load_state_dict(checkpoint["coarse_model_state_dict"])
     model.eval()
-    rays_origin, rays_direction, ground_truths = generateImageBatch(images[0], poses["pose_list"][0]["camera_pose"], camera_info, args)    
-    with torch.no_grad():
-        rgb = render(model, rays_origin, rays_direction, args)
-    rgb = rgb.detach().numpy()
-    rgb = np.uint8(rgb.reshape((int(camera_info["H"] / args.scale_factor), int(camera_info["W"] / args.scale_factor), 3)))
-    cv2.imshow("recreation", rgb)
+
+
+    rgb_arr = np.zeros((camera_info["H"]*camera_info["W"], 3), dtype=np.uint8) # [H*W, 3]
+    for i in tqdm(range(int(args.scale_factor))):
+        indices = int((camera_info["H"]* camera_info["W"]) / (args.scale_factor))
+        samples = np.linspace(0,indices-1, indices, dtype=np.int32) + (indices * i) # 0-n/8 + (n/8) * i
+        rays_origin, rays_direction, __ = generateImageBatch(samples, images[0], poses["pose_list"][0]["camera_pose"], camera_info, args)    
+        with torch.no_grad():
+            rgb = render(model, rays_origin, rays_direction, args)
+        rgb_arr[samples[0]:(samples[-1]+1), :] = np.uint8(255*rgb.detach().numpy())
+
+    rgb_arr = rgb_arr.reshape((int(camera_info["H"]), int(camera_info["W"]), 3))
+    cv2.imshow("recreation", rgb_arr)
     cv2.imshow("original", images[0])
     cv2.waitKey(0)
     cv2.destroyAllWindows()

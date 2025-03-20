@@ -81,7 +81,7 @@ class NeRFmodel(nn.Module):
         if self.pos_encoding:
             output = self.relu1(self.LL1(PE_pos))
         else:
-            print(f"pos device: {pos.device}")
+            # print(f"pos device: {pos.device}")
             output = self.relu1(self.LL1(pos))
 
         output = self.relu2(self.LL2(output))
