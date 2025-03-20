@@ -289,33 +289,36 @@ def generateImageBatch(samples, image, pose, camera_info, args):
 def test(images, poses, camera_info, args):
 
     """Generate an image from camera poses"""
+    model_num = 29
+    im_num = 50
     model = NeRFmodel(60,24,False,False)
     args.n_rays_batch = int(camera_info["H"] / args.scale_factor * camera_info["W"] / args.scale_factor)
-    checkpoint = torch.load(args.checkpoint_path+"18model.ckpt", weights_only=True, map_location=device)
-
+    checkpoint = torch.load(args.checkpoint_path+f"{model_num}model.ckpt", weights_only=True, map_location=device)
     model.load_state_dict(checkpoint["coarse_model_state_dict"])
+    model.to(device)
     model.eval()
 
 
     rgb_arr = np.zeros((camera_info["H"]*camera_info["W"], 3), dtype=np.uint8) # [H*W, 3]
     for i in tqdm(range(int(args.scale_factor))):
         indices = int((camera_info["H"]* camera_info["W"]) / (args.scale_factor))
-        samples = np.linspace(0,indices-1, indices, dtype=np.int32) + (indices * i) # 0-n/8 + (n/8) * i
-        rays_origin, rays_direction, __ = generateImageBatch(samples, images[0], poses["pose_list"][0]["camera_pose"], camera_info, args)    
+        samples = np.linspace(0,indices-1, indices, dtype=np.int32) + (indices * i) 
+        rays_origin, rays_direction, __ = generateImageBatch(samples, images[im_num], poses["pose_list"][im_num]["camera_pose"], camera_info, args)    
         with torch.no_grad():
             rgb = render(model, rays_origin, rays_direction, args)
-        rgb_arr[samples[0]:(samples[-1]+1), :] = np.uint8(255*rgb.detach().numpy())
+        rgb_arr[samples[0]:(samples[-1]+1), :] = np.uint8(255*rgb.detach().cpu().numpy())
 
     rgb_arr = rgb_arr.reshape((int(camera_info["H"]), int(camera_info["W"]), 3))
-    cv2.imshow("recreation", rgb_arr)
-    cv2.imshow("original", images[0])
-    cv2.waitKey(0)
-    cv2.destroyAllWindows()
+    #cv2.imshow("recreation", rgb_arr)
+    #cv2.imshow("original", images[0])
+    #cv2.waitKey(0)
+    #cv2.destroyAllWindows()
+    cv2.imwrite(f"outputs/model{model_num}_{im_num}out.png", rgb_arr)
 
 def main(args):
     # load data
     print("Loading data...")
-    camera_info, poses, images, depth_images = util.loadDataset(args.data_path, args.mode)
+    camera_info, poses, images, depth_images = util.loadDataset(args.data_path, 'train')
     __, poses_val, images_val, depth_images_val = util.loadDataset(args.data_path, 'val') 
     # util.show_camera_frames(poses)
     # exit(1)
